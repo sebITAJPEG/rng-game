@@ -1,0 +1,5 @@
+{
+  "name": "TextBound RNG",
+  "description": "A minimalist, high-speed text generation RNG game where players roll for sentences of increasing rarity, from Common to The One (1 in 1 Trillion).",
+  "requestFramePermissions": []
+}
