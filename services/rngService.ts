@@ -28,6 +28,7 @@ export const generateDrop = (totalRolls: number, luckMultiplier: number = 1, lan
   return {
     text: item.text,
     description: item.description,
+    cutscenePhrase: item.cutscenePhrase,
     rarityId: selectedTier.id,
     timestamp: Date.now(),
     rollNumber: totalRolls + 1

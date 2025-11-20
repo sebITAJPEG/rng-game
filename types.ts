@@ -31,11 +31,13 @@ export interface RarityTier {
 export interface ItemData {
   text: string;
   description: string;
+  cutscenePhrase?: string; // New field for epic reveal text
 }
 
 export interface Drop {
   text: string;
   description: string;
+  cutscenePhrase?: string;
   rarityId: RarityId;
   timestamp: number;
   rollNumber: number;

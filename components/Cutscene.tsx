@@ -1,223 +1,245 @@
-import React, { useEffect, useState } from 'react';
+
+import React, { useEffect, useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { RarityId } from '../types';
+import { audioService } from '../services/audioService';
 
 interface Props {
   text: string;
   rarityId: RarityId;
+  cutscenePhrase?: string;
   onComplete: () => void;
 }
 
-export const Cutscene: React.FC<Props> = ({ text, rarityId, onComplete }) => {
+// Helper to generate random particles
+const useParticles = (count: number) => {
+    return useMemo(() => {
+        return Array.from({ length: count }).map((_, i) => ({
+            id: i,
+            x: Math.random() * 100,
+            y: Math.random() * 100,
+            size: Math.random() * 4 + 1,
+            duration: Math.random() * 2 + 1,
+            delay: Math.random() * 2
+        }));
+    }, [count]);
+};
+
+export const Cutscene: React.FC<Props> = ({ text, rarityId, cutscenePhrase, onComplete }) => {
   const [stage, setStage] = useState(0);
+  
+  // Cinematic Shake Effect State
+  const [shake, setShake] = useState(0);
 
   useEffect(() => {
-    // Timing based on rarity intensity
-    let times = [500, 2500, 5000];
+    audioService.playCutsceneAmbience(rarityId);
+
+    // Timing logic based on rarity complexity
+    // 0: Init, 1: Buildup/Phrase, 2: Climax/Reveal, 3: Hold, 4: Complete
+    let times = [1500, 3500, 6500, 8000];
     
     if (rarityId === RarityId.THE_ONE) {
-        times = [1000, 4000, 8000]; // Longer for The One
+        times = [2000, 5000, 8000, 11000]; 
     }
 
-    const t1 = setTimeout(() => setStage(1), times[0]);
-    const t2 = setTimeout(() => setStage(2), times[1]);
-    const t3 = setTimeout(() => onComplete(), times[2]);
+    const t1 = setTimeout(() => { setStage(1); setShake(5); }, times[0]);
+    const t2 = setTimeout(() => { setStage(2); setShake(20); }, times[1]);
+    const t3 = setTimeout(() => setStage(3), times[2]); // Calm down/Hold
+    const t4 = setTimeout(() => onComplete(), times[3]);
 
     return () => {
       clearTimeout(t1);
       clearTimeout(t2);
       clearTimeout(t3);
+      clearTimeout(t4);
     };
   }, [onComplete, rarityId]);
 
-  // --- PRIMORDIAL CUTSCENE (Magma, Earthquake, Ancient) ---
+  const phrase = cutscenePhrase || "LEGENDARY DROP";
+  const particles = useParticles(30);
+
+  // Common Cinematic Bars (Widescreen feel)
+  const CinematicBars = () => (
+      <>
+        <motion.div 
+            initial={{ height: 0 }} animate={{ height: "10vh" }} 
+            className="absolute top-0 left-0 w-full bg-black z-[150]" 
+        />
+        <motion.div 
+            initial={{ height: 0 }} animate={{ height: "10vh" }} 
+            className="absolute bottom-0 left-0 w-full bg-black z-[150]" 
+        />
+      </>
+  );
+
+  // --- PRIMORDIAL (Magma, Heartbeat, Ancient) ---
   if (rarityId === RarityId.PRIMORDIAL) {
     return (
-      <motion.div className="fixed inset-0 z-[100] bg-orange-950 flex items-center justify-center overflow-hidden font-mono text-white">
+      <motion.div 
+        className="fixed inset-0 z-[100] bg-black flex items-center justify-center overflow-hidden font-mono text-white"
+      >
+        <CinematicBars />
+        
+        {/* Shaking Container */}
         <motion.div 
-            className="absolute inset-0 bg-[radial-gradient(circle,_rgba(255,69,0,0.8)_0%,_rgba(0,0,0,1)_100%)]"
-            animate={{ scale: [1, 1.2, 1] }}
-            transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-        />
-        {/* Cracks */}
-        <div className="absolute inset-0 opacity-30 bg-[url('https://www.transparenttextures.com/patterns/cracked-ground.png')]" />
-        
-        <AnimatePresence>
-            {stage === 1 && (
-                <motion.div
-                    initial={{ opacity: 0, y: 50 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 1.5 }}
-                    className="relative z-10 text-4xl font-bold tracking-widest text-orange-500 uppercase"
-                >
-                    AWAKENING
-                </motion.div>
-            )}
-        </AnimatePresence>
+            className="absolute inset-0 flex items-center justify-center"
+            animate={{ x: [0, -shake, shake, 0], y: [0, shake, -shake, 0] }}
+            transition={{ duration: 0.1, repeat: Infinity }}
+        >
+            {/* Background Magma Pulse */}
+            <motion.div 
+                className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-orange-600 via-red-900 to-black"
+                animate={{ scale: [1, 1.2, 1], opacity: [0.6, 1, 0.6] }}
+                transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+            />
 
-        <AnimatePresence>
-            {stage >= 2 && (
-                <div className="relative z-10 flex flex-col items-center">
+            {/* Rising Embers */}
+            {particles.map((p) => (
+                <motion.div
+                    key={p.id}
+                    className="absolute bg-orange-400 rounded-full mix-blend-screen blur-[1px]"
+                    style={{ 
+                        left: `${p.x}%`, 
+                        bottom: "-10%",
+                        width: p.size, 
+                        height: p.size 
+                    }}
+                    animate={{ y: "-120vh", opacity: [0, 1, 0] }}
+                    transition={{ duration: p.duration, repeat: Infinity, delay: p.delay, ease: "linear" }}
+                />
+            ))}
+
+            {/* STAGE 1: Phrase */}
+            <AnimatePresence>
+                {stage === 1 && (
                     <motion.div
-                        initial={{ scale: 0 }}
-                        animate={{ 
-                            scale: 1,
-                            rotate: [0, -1, 1, -1, 0], // Shake
-                        }}
-                        transition={{ type: "spring", stiffness: 100 }}
-                        className="text-6xl md:text-8xl font-black text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 to-red-600 drop-shadow-[0_5px_5px_rgba(0,0,0,0.8)]"
+                        initial={{ opacity: 0, scale: 2 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.5, filter: "blur(10px)" }}
+                        className="relative z-20 text-4xl md:text-6xl font-bold text-orange-100 tracking-[0.5em] uppercase text-center drop-shadow-[0_0_15px_rgba(255,100,0,0.8)]"
                     >
-                        {text.toUpperCase()}
+                        {phrase}
                     </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* STAGE 2: The Reveal */}
+            <AnimatePresence>
+                {stage >= 2 && (
                     <motion.div 
-                        initial={{ width: 0 }}
-                        animate={{ width: "100%" }}
-                        className="h-2 mt-4 bg-orange-600 rounded-full box-shadow-[0_0_20px_orange]"
-                    />
-                </div>
-            )}
-        </AnimatePresence>
-        
-        {/* Embers */}
-        {Array.from({ length: 20 }).map((_, i) => (
-             <motion.div
-                key={i}
-                className="absolute bg-orange-500 w-2 h-2 rounded-full"
-                initial={{ y: "100vh", x: Math.random() * 100 + "vw", opacity: 0 }}
-                animate={{ y: "-10vh", opacity: [0, 1, 0] }}
-                transition={{ duration: Math.random() * 2 + 2, repeat: Infinity, delay: Math.random() }}
-             />
-        ))}
+                        className="relative z-20 flex flex-col items-center px-4"
+                        initial={{ scale: 0.5, opacity: 0, filter: "brightness(5)" }}
+                        animate={{ scale: 1, opacity: 1, filter: "brightness(1)" }}
+                        transition={{ type: "spring", bounce: 0.4 }}
+                    >
+                        <div className="text-sm text-orange-500 font-bold tracking-[1em] mb-6 border-b border-orange-500 pb-2 uppercase">
+                            Primordial Artifact
+                        </div>
+                        <motion.div
+                            className="text-5xl md:text-8xl font-black text-transparent bg-clip-text bg-gradient-to-b from-white to-orange-400 text-center"
+                            style={{ textShadow: "0 0 30px rgba(255, 69, 0, 0.6)" }}
+                        >
+                            {text}
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+        </motion.div>
       </motion.div>
     );
   }
 
-  // --- INFINITE CUTSCENE (Mirrors, Fractals, Cyan) ---
+  // --- INFINITE (Speed, Light, Hyperspace) ---
   if (rarityId === RarityId.INFINITE) {
     return (
-      <motion.div className="fixed inset-0 z-[100] bg-black flex items-center justify-center overflow-hidden font-sans text-white">
-        
-        {/* Expanding Rings */}
-        {Array.from({ length: 5 }).map((_, i) => (
-            <motion.div
-                key={i}
-                className="absolute border border-cyan-500/30 rounded-full aspect-square"
-                initial={{ width: "0%", opacity: 1 }}
-                animate={{ width: "200%", opacity: 0 }}
-                transition={{ duration: 3, repeat: Infinity, delay: i * 0.5, ease: "linear" }}
+      <div className="fixed inset-0 z-[100] bg-black flex items-center justify-center overflow-hidden font-sans">
+        <CinematicBars />
+
+        {/* Hyperspace Tunnel */}
+        <motion.div 
+            className="absolute inset-0 perspective-[500px]"
+            animate={{ filter: stage >= 2 ? "blur(0px)" : "blur(0px)" }}
+        >
+            {/* Star Streaks */}
+            <motion.div 
+                className="absolute inset-[-100%] bg-[conic-gradient(from_0deg,transparent_0_340deg,white_360deg)] opacity-20"
+                animate={{ rotate: 360 }}
+                transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
             />
-        ))}
+             <motion.div 
+                className="absolute inset-[-100%] bg-[conic-gradient(from_90deg,transparent_0_340deg,cyan_360deg)] opacity-20 mix-blend-screen"
+                animate={{ rotate: -360 }}
+                transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
+            />
+        </motion.div>
+
+        {/* Center Glow */}
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_transparent_0%,_black_90%)] z-10" />
 
         <AnimatePresence>
             {stage === 1 && (
-                <motion.div
-                    initial={{ opacity: 0, filter: "blur(20px)" }}
-                    animate={{ opacity: 1, filter: "blur(0px)" }}
-                    exit={{ opacity: 0, filter: "blur(20px)" }}
-                    className="relative z-10 text-2xl font-light tracking-[1em] text-cyan-200 uppercase"
+                 <motion.div
+                    initial={{ z: -1000, opacity: 0 }}
+                    animate={{ z: 0, opacity: 1 }}
+                    exit={{ z: 1000, opacity: 0 }}
+                    className="relative z-20 text-3xl md:text-5xl font-light tracking-[2em] text-cyan-300 uppercase whitespace-nowrap"
                 >
-                    BOUNDLESS
+                    {phrase}
                 </motion.div>
             )}
         </AnimatePresence>
 
+        {/* Reveal with Chromatic Aberration */}
         <AnimatePresence>
             {stage >= 2 && (
-                <div className="relative z-10 text-center">
-                     {/* Background Echoes */}
-                     <motion.h1 
-                        className="absolute top-0 left-0 w-full text-center text-6xl md:text-8xl font-bold text-cyan-900 opacity-50 select-none"
-                        animate={{ scale: [1, 2], opacity: [0.5, 0] }}
-                        transition={{ duration: 2, repeat: Infinity }}
-                     >
-                        {text}
-                     </motion.h1>
-                    
-                    <motion.h1
-                        initial={{ scale: 0.8, opacity: 0 }}
-                        animate={{ scale: 1, opacity: 1 }}
-                        className="relative text-6xl md:text-8xl font-bold text-white drop-shadow-[0_0_30px_rgba(6,182,212,0.8)]"
+                <motion.div className="relative z-20 text-center">
+                    <motion.div 
+                        initial={{ scale: 0, rotate: -180 }}
+                        animate={{ scale: 1, rotate: 0 }}
+                        transition={{ type: "spring", duration: 1.5 }}
+                        className="relative"
                     >
-                        {text}
-                    </motion.h1>
-                </div>
-            )}
-        </AnimatePresence>
-      </motion.div>
-    );
-  }
-
-  // --- CHAOS CUTSCENE (Glitch, Noise, Aggressive) ---
-  if (rarityId === RarityId.CHAOS) {
-    return (
-      <div className="fixed inset-0 z-[100] bg-black flex items-center justify-center overflow-hidden font-mono">
-         <motion.div 
-            className="absolute inset-0 bg-fuchsia-900"
-            animate={{ opacity: [0, 0.2, 0, 0.4, 0] }}
-            transition={{ duration: 0.2, repeat: Infinity }}
-         />
-         
-         <AnimatePresence>
-            {stage === 1 && (
-                <motion.div
-                    initial={{ x: -1000 }}
-                    animate={{ x: 0 }}
-                    exit={{ x: 1000 }}
-                    className="relative z-10 text-4xl bg-white text-black px-8 py-2 font-bold tracking-tighter uppercase transform -skew-x-12"
-                >
-                    REALITY FAILURE
+                         {/* RGB Split Layers */}
+                        <motion.h1 className="absolute top-0 left-0 w-full text-6xl md:text-9xl font-bold text-red-500 mix-blend-screen opacity-50"
+                            animate={{ x: [-2, 2], y: [1, -1] }} transition={{ repeat: Infinity, duration: 0.1 }}>{text}</motion.h1>
+                        <motion.h1 className="absolute top-0 left-0 w-full text-6xl md:text-9xl font-bold text-blue-500 mix-blend-screen opacity-50"
+                            animate={{ x: [2, -2], y: [-1, 1] }} transition={{ repeat: Infinity, duration: 0.1 }}>{text}</motion.h1>
+                        
+                        <h1 className="text-6xl md:text-9xl font-bold text-white drop-shadow-[0_0_20px_cyan] relative z-10">
+                            {text}
+                        </h1>
+                    </motion.div>
+                    <motion.div 
+                        initial={{ width: 0 }} animate={{ width: "100%" }}
+                        className="h-1 bg-cyan-400 mt-8 shadow-[0_0_20px_cyan]" 
+                    />
                 </motion.div>
             )}
-         </AnimatePresence>
-
-         <AnimatePresence>
-            {stage >= 2 && (
-                <div className="relative z-10">
-                    <motion.div
-                        className="text-6xl md:text-8xl font-bold text-fuchsia-500 mix-blend-exclusion absolute top-1 left-1"
-                        animate={{ x: [-2, 2, -1, 0], y: [1, -2, 2, 0] }}
-                        transition={{ repeat: Infinity, duration: 0.1 }}
-                    >
-                        {text}
-                    </motion.div>
-                    <motion.div
-                        className="text-6xl md:text-8xl font-bold text-green-500 mix-blend-exclusion absolute top-[-1px] left-[-1px]"
-                        animate={{ x: [2, -2, 1, 0], y: [-1, 2, -2, 0] }}
-                        transition={{ repeat: Infinity, duration: 0.15 }}
-                    >
-                        {text}
-                    </motion.div>
-                    <motion.h1
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        className="relative text-6xl md:text-8xl font-bold text-white"
-                    >
-                        {text}
-                    </motion.h1>
-                </div>
-            )}
-         </AnimatePresence>
+        </AnimatePresence>
       </div>
     );
   }
 
-  // --- THE ONE CUTSCENE (Ascension, White Room, Finality) ---
-  if (rarityId === RarityId.THE_ONE) {
-      return (
-        <motion.div 
-            initial={{ backgroundColor: "#000" }}
-            animate={{ backgroundColor: "#FFF" }}
-            transition={{ duration: 3, ease: "circIn" }}
-            className="fixed inset-0 z-[100] flex flex-col items-center justify-center overflow-hidden font-mono"
-        >
+  // --- CHAOS (Glitch, Horror, Entropy) ---
+  if (rarityId === RarityId.CHAOS) {
+    return (
+      <div className="fixed inset-0 z-[100] bg-neutral-900 flex items-center justify-center overflow-hidden font-mono">
+         {/* Aggressive Background */}
+         <motion.div 
+            className="absolute inset-0 bg-white mix-blend-difference"
+            animate={{ opacity: [0, 0.2, 0, 0.8, 0] }}
+            transition={{ duration: 0.2, repeat: Infinity, repeatType: "mirror" }}
+         />
+         
+         {/* Glitch Text Container */}
+         <div className="relative z-20">
             <AnimatePresence>
-                {stage < 2 && (
-                    <motion.div 
-                        className="text-xs text-neutral-500 absolute bottom-10"
-                        animate={{ opacity: [0, 1, 0] }}
-                        transition={{ duration: 1, repeat: Infinity }}
+                {stage === 1 && (
+                    <motion.div
+                        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                        className="text-4xl md:text-6xl font-black bg-black text-white px-8 py-2 transform -skew-x-12 border-2 border-white"
                     >
-                        DECRYPTING SOURCE...
+                        {phrase}
                     </motion.div>
                 )}
             </AnimatePresence>
@@ -225,19 +247,140 @@ export const Cutscene: React.FC<Props> = ({ text, rarityId, onComplete }) => {
             <AnimatePresence>
                 {stage >= 2 && (
                     <motion.div
-                        initial={{ opacity: 0, scale: 0.9 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        className="text-center z-10"
+                        initial={{ scale: 2, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        className="relative"
                     >
-                        <div className="text-sm tracking-[1em] text-neutral-400 mb-4 uppercase">You found</div>
-                        <div className="text-6xl md:text-9xl font-black tracking-tighter text-black">
-                            {text}
-                        </div>
+                        {/* The "Broken" Effect */}
                         <motion.div 
-                            initial={{ width: 0 }}
-                            animate={{ width: "100%" }}
-                            transition={{ duration: 2, delay: 0.5 }}
-                            className="h-px bg-black mt-6 mx-auto"
+                            className="absolute -inset-4 bg-fuchsia-600 blur-xl opacity-50"
+                            animate={{ opacity: [0.2, 0.5, 0.2], scale: [0.9, 1.1, 0.9] }}
+                            transition={{ duration: 0.1, repeat: Infinity }}
+                        />
+                        <div className="text-6xl md:text-8xl font-black text-white relative z-10 mix-blend-hard-light">
+                            {text.split('').map((char, i) => (
+                                <motion.span 
+                                    key={i} 
+                                    className="inline-block"
+                                    animate={{ 
+                                        y: [0, Math.random()*20 - 10, 0], 
+                                        x: [0, Math.random()*10 - 5, 0],
+                                        opacity: [1, 0.5, 1]
+                                    }}
+                                    transition={{ duration: 0.2, repeat: Infinity }}
+                                >
+                                    {char}
+                                </motion.span>
+                            ))}
+                        </div>
+                         <div className="text-sm text-center mt-4 font-mono tracking-widest text-fuchsia-400">
+                             FATAL_EXCEPTION_THROWN
+                         </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+         </div>
+      </div>
+    );
+  }
+
+  // --- THE ONE (Ascension, Singularity, Code) ---
+  if (rarityId === RarityId.THE_ONE) {
+      return (
+        <motion.div 
+            className="fixed inset-0 z-[100] flex flex-col items-center justify-center overflow-hidden font-mono bg-black"
+        >
+            <CinematicBars />
+
+            {/* Phase 1: Matrix Code Rain (Simplified vertical strips) */}
+            <div className="absolute inset-0 flex justify-between opacity-20 pointer-events-none">
+                {Array.from({length: 20}).map((_, i) => (
+                    <motion.div 
+                        key={i}
+                        className="w-px bg-green-500 h-full"
+                        initial={{ y: "-100%" }}
+                        animate={{ y: "100%" }}
+                        transition={{ duration: Math.random() * 2 + 1, repeat: Infinity, ease: "linear" }}
+                    />
+                ))}
+            </div>
+
+            {/* Phase 2: The Singularity (Implosion) */}
+            {stage === 2 && (
+                <motion.div 
+                    className="absolute inset-0 bg-white"
+                    initial={{ scale: 0, borderRadius: "100%" }}
+                    animate={{ scale: [0, 0.1, 20] }} // Explode outward
+                    transition={{ duration: 0.4, ease: "circIn", delay: 0.2 }}
+                />
+            )}
+
+            {/* Phase 3: Ascension (White State) */}
+            {stage >= 2 && (
+                <motion.div 
+                    className="absolute inset-0 bg-white z-10 flex items-center justify-center"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ duration: 0.1, delay: 0.4 }}
+                >
+                    {/* Divine Particles */}
+                    <div className="absolute inset-0 overflow-hidden">
+                        {particles.map((p) => (
+                            <motion.div
+                                key={p.id}
+                                className="absolute bg-neutral-200 rounded-full"
+                                style={{ left: `${p.x}%`, top: `${p.y}%`, width: p.size * 2, height: p.size * 2 }}
+                                animate={{ y: -100, opacity: 0 }}
+                                transition={{ duration: 2, repeat: Infinity }}
+                            />
+                        ))}
+                    </div>
+
+                    <motion.div className="relative z-20 text-center">
+                         <motion.div
+                            initial={{ y: 50, opacity: 0 }}
+                            animate={{ y: 0, opacity: 1 }}
+                            transition={{ delay: 0.6, duration: 1 }}
+                         >
+                            <div className="text-xs text-neutral-400 tracking-[1.5em] uppercase mb-8 ml-2">
+                                Reality Simulation End
+                            </div>
+                            <h1 className="text-5xl md:text-9xl font-black text-black tracking-tighter drop-shadow-2xl">
+                                {text}
+                            </h1>
+                         </motion.div>
+                         <motion.div 
+                            initial={{ scaleX: 0 }}
+                            animate={{ scaleX: 1 }}
+                            transition={{ delay: 1, duration: 1.5 }}
+                            className="w-full h-[2px] bg-black mt-8"
+                         />
+                    </motion.div>
+                </motion.div>
+            )}
+
+            {/* Terminal Text (Stage 1) */}
+            <AnimatePresence>
+                {stage === 1 && (
+                    <motion.div 
+                        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                        className="z-20 text-xl md:text-3xl text-green-500 font-bold"
+                    >
+                        <span className="mr-4">{'>'}</span>
+                        {phrase.split('').map((char, i) => (
+                            <motion.span
+                                key={i}
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                transition={{ delay: i * 0.05 }}
+                            >
+                                {char}
+                            </motion.span>
+                        ))}
+                        <motion.span
+                            animate={{ opacity: [0, 1] }}
+                            transition={{ repeat: Infinity, duration: 0.1 }}
+                            className="inline-block w-4 h-8 bg-green-500 ml-2 align-middle"
                         />
                     </motion.div>
                 )}
@@ -246,15 +389,6 @@ export const Cutscene: React.FC<Props> = ({ text, rarityId, onComplete }) => {
       )
   }
 
-  // --- FALLBACK (For other tiers if configured to show) ---
-  return (
-    <motion.div 
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[100] bg-black flex items-center justify-center text-white"
-    >
-        <h1 className="text-4xl font-bold">{text}</h1>
-    </motion.div>
-  );
+  // Fallback
+  return null;
 };
