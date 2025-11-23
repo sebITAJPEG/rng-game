@@ -329,61 +329,6 @@ const AntimatterModel = () => {
   );
 };
 
-const CrystallizedThoughtModel = () => {
-  return (
-    <Float speed={2} rotationIntensity={1} floatIntensity={1}>
-      <Icosahedron args={[1, 2]}>
-        <MeshDistortMaterial
-          color="#ec4899"
-          emissive="#be185d"
-          emissiveIntensity={1}
-          distort={0.6}
-          speed={2}
-          roughness={0.2}
-        />
-      </Icosahedron>
-      <Icosahedron args={[1.2, 0]}>
-        <meshBasicMaterial color="#fbcfe8" wireframe transparent opacity={0.3} />
-      </Icosahedron>
-      <Sparkles count={40} scale={3} size={3} speed={0.4} opacity={0.6} color="#fbcfe8" />
-      <pointLight color="#ec4899" intensity={5} distance={5} />
-    </Float>
-  );
-};
-
-const SolidLightModel = () => {
-  return (
-    <Float speed={1} rotationIntensity={0.5} floatIntensity={0.5}>
-      {/* Light Bar */}
-      <mesh>
-        <boxGeometry args={[0.5, 2, 0.5]} />
-        <meshStandardMaterial
-          color="#ffffff"
-          emissive="#ffffff"
-          emissiveIntensity={4}
-          toneMapped={false}
-        />
-      </mesh>
-      {/* Halo */}
-      <mesh>
-        <boxGeometry args={[0.8, 2.2, 0.8]} />
-        <MeshTransmissionMaterial
-          backside
-          samples={8}
-          thickness={1}
-          roughness={0}
-          chromaticAberration={1}
-          anisotropy={1}
-          distortion={0.5}
-          color="#ffffff"
-        />
-      </mesh>
-      <Sparkles count={50} scale={4} size={4} speed={1} opacity={0.8} color="#ffffff" />
-      <pointLight color="#ffffff" intensity={5} distance={10} />
-    </Float>
-  );
-};
-
 const StandardOreModel = ({ color, intensity }: { color: string, intensity: number }) => {
   return (
     <Float speed={2} rotationIntensity={1} floatIntensity={0.5}>
@@ -415,8 +360,6 @@ const SceneContent: React.FC<{ item: ItemData; color: string; intensity: number 
   const isFrozenTime = item.text === "Frozen Time";
   const isSolarPlasma = item.text === "Solar Plasma";
   const isAntimatter = item.text === "Antimatter";
-  const isCrystallizedThought = item.text === "Crystallized Thought";
-  const isSolidLight = item.text === "Solid Light";
 
   return (
     <>
@@ -438,10 +381,6 @@ const SceneContent: React.FC<{ item: ItemData; color: string; intensity: number 
         <SolarPlasmaModel />
       ) : isAntimatter ? (
         <AntimatterModel />
-      ) : isCrystallizedThought ? (
-        <CrystallizedThoughtModel />
-      ) : isSolidLight ? (
-        <SolidLightModel />
       ) : (
         <StandardOreModel color={color} intensity={intensity} />
       )}
@@ -500,7 +439,7 @@ export const ItemVisualizer: React.FC<Props> = ({ item, onClose }) => {
 
   // Item Data
   const oreData = useMemo(() => ORES.find(o => o.name === item.text), [item.text]);
-  const isSpecial = item.text === "Black Hole Core" || item.text === "Liquid Luck" || item.text === "Sound Shard" || item.text === "Hypercube Fragment" || item.text === "Frozen Time" || item.text === "Solar Plasma" || item.text === "Antimatter" || item.text === "Crystallized Thought" || item.text === "Solid Light";
+  const isSpecial = item.text === "Black Hole Core" || item.text === "Liquid Luck" || item.text === "Sound Shard" || item.text === "Hypercube Fragment" || item.text === "Frozen Time" || item.text === "Solar Plasma" || item.text === "Antimatter";
   const isOre = !!oreData;
 
   // Determine Visual Properties
