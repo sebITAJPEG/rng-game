@@ -141,12 +141,6 @@ export interface Achievement {
   condition: (stats: GameStats, inventory: InventoryItem[]) => boolean;
 }
 
-export interface SignalBuff {
-  multiplier: number;
-  endTime: number;
-  id: number; // Unique ID to trigger updates/effects
-}
-
 // --- CRAFTING TYPES ---
 
 export type CraftingCategory = 'GENERAL' | 'MINING' | 'FISHING' | 'HARVESTING';
@@ -224,7 +218,4 @@ export interface GameStats {
 
   // Gacha
   gachaCredits: number;
-
-  // Signal Interceptor
-  signalBuff: SignalBuff | null;
 }

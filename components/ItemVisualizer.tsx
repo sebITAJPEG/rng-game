@@ -1,280 +1,473 @@
-import React, { useRef, useEffect, useState, useMemo } from 'react';
+/// <reference types="@react-three/fiber" />
+import React, { useRef, useMemo } from 'react';
 import { motion, useMotionValue, useSpring, useTransform } from 'framer-motion';
-import { RarityId, ItemData, VariantId } from '../types';
-import { RARITY_TIERS, VARIANTS, ORES } from '../constants';
+import * as THREE from 'three';
+import { Canvas, useFrame } from '@react-three/fiber';
+import {
+  OrbitControls,
+  Float,
+  Stars,
+  Sparkles,
+  MeshTransmissionMaterial,
+  MeshDistortMaterial,
+  Icosahedron,
+  Octahedron,
+  Torus,
+  Sphere
+} from '@react-three/drei';
+import { EffectComposer, Bloom, Noise, Vignette } from '@react-three/postprocessing';
+import { RarityId, ItemData, VariantId } from '@/types';
+import { RARITY_TIERS, VARIANTS, ORES } from '@/constants';
 
 interface Props {
   item: ItemData & { rarityId: RarityId, variantId?: VariantId };
   onClose: () => void;
 }
 
-// --- 3D SCENE COMPONENT ---
-const ThreeScene: React.FC<{ color: string; intensity: number; isLiquidLuck?: boolean; isSoundShard?: boolean }> = ({ color, intensity, isLiquidLuck, isSoundShard }) => {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [libsLoaded, setLibsLoaded] = useState(false);
+// --- 3D COMPONENTS ---
 
-  useEffect(() => {
-    // Function to load external scripts
-    const loadScript = (src: string) => {
-      return new Promise<void>((resolve, reject) => {
-        if (document.querySelector(`script[src="${src}"]`)) {
-          resolve();
-          return;
-        }
-        const script = document.createElement('script');
-        script.src = src;
-        script.async = true;
-        script.onload = () => resolve();
-        script.onerror = () => reject(new Error(`Failed to load ${src}`));
-        document.body.appendChild(script);
-      });
-    };
+const BlackHoleModel = () => {
+  const particlesCount = 1500;
+  const particlesRef = useRef<THREE.Points>(null);
+  const ringRef1 = useRef<THREE.Mesh>(null);
+  const ringRef2 = useRef<THREE.Mesh>(null);
 
-    // Load Three.js and SimplexNoise
-    // Sound Shard now also needs SimplexNoise for the waveform effect
-    Promise.all([
-      loadScript('https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js'),
-      (isLiquidLuck || isSoundShard) ? loadScript('https://cdnjs.cloudflare.com/ajax/libs/simplex-noise/2.4.0/simplex-noise.min.js') : Promise.resolve()
-    ]).then(() => {
-      setLibsLoaded(true);
-    }).catch(e => console.error("Failed to load 3D libraries", e));
+  // Generate spiral particles for accretion disk
+  const particlePositions = useMemo(() => {
+    const positions = new Float32Array(particlesCount * 3);
+    for (let i = 0; i < particlesCount; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      // Distribute mostly in a disk, clustered near center
+      const radius = 1.2 + Math.random() * 2.5 + Math.pow(Math.random(), 3) * 2;
+      const y = (Math.random() - 0.5) * 0.15 * (radius * 0.5); // Flattened
 
-  }, [isLiquidLuck, isSoundShard]);
-
-  useEffect(() => {
-    if (!libsLoaded || !containerRef.current) return;
-
-    const THREE = (window as any).THREE;
-    const SimplexNoise = (window as any).SimplexNoise;
-
-    const width = containerRef.current.clientWidth;
-    const height = containerRef.current.clientHeight;
-
-    // Setup Scene
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(50, width / height, 0.1, 1000);
-    camera.position.z = 3;
-
-    const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
-    renderer.setSize(width, height);
-    renderer.setPixelRatio(window.devicePixelRatio);
-    containerRef.current.appendChild(renderer.domElement);
-
-    let mesh: any;
-    let simplex: any;
-    // Store original positions to calculate noise displacement from a stable base
-    let originalPositions: Float32Array | null = null;
-
-    if (isLiquidLuck && SimplexNoise) {
-      // --- LIQUID LUCK MODEL ---
-      simplex = new SimplexNoise();
-
-      const geometry = new THREE.IcosahedronGeometry(1, 5);
-      originalPositions = geometry.attributes.position.array.slice();
-
-      const material = new THREE.MeshPhysicalMaterial({
-        color: 0xffd700,
-        emissive: 0xaa6600,
-        emissiveIntensity: 0.2,
-        metalness: 0.9,
-        roughness: 0.1,
-        clearcoat: 1.0,
-        clearcoatRoughness: 0.1,
-        reflectivity: 1.0,
-        transmission: 0.1,
-        opacity: 0.9,
-        transparent: true
-      });
-
-      mesh = new THREE.Mesh(geometry, material);
-
-    } else if (isSoundShard && SimplexNoise) {
-      // --- SOUND SHARD MODEL (NEW) ---
-      simplex = new SimplexNoise();
-
-      // A tall, segmented crystal cylinder
-      const geometry = new THREE.CylinderGeometry(0.05, 0.6, 2.5, 6, 20); // High height segments for wave resolution
-      originalPositions = geometry.attributes.position.array.slice();
-
-      const material = new THREE.MeshPhysicalMaterial({
-        color: 0x6ee7b7, // Emeraldish green
-        emissive: 0x10b981,
-        emissiveIntensity: 0.5,
-        metalness: 0.1,
-        roughness: 0.2,
-        transmission: 0.2,
-        thickness: 1.0,
-        clearcoat: 1.0,
-        transparent: true,
-        opacity: 0.9,
-        flatShading: true // Crystal look
-      });
-
-      mesh = new THREE.Mesh(geometry, material);
-
-      // Add sonic rings around it
-      const ringGeo = new THREE.TorusGeometry(1.0, 0.02, 4, 32);
-      const ringMat = new THREE.MeshBasicMaterial({ color: 0x6ee7b7, transparent: true, opacity: 0.4 });
-      const ring1 = new THREE.Mesh(ringGeo, ringMat);
-      const ring2 = new THREE.Mesh(ringGeo, ringMat);
-      const ring3 = new THREE.Mesh(ringGeo, ringMat); // Extra ring
-
-      ring1.rotation.x = Math.PI / 2 + 0.2;
-      ring2.rotation.x = Math.PI / 2 - 0.2;
-      ring3.rotation.x = Math.PI / 2;
-
-      // Add to mesh so they move together, but we'll animate them separately
-      mesh.add(ring1);
-      mesh.add(ring2);
-      mesh.add(ring3);
-
-      mesh.userData = { rings: [ring1, ring2, ring3] };
-
-    } else {
-      // --- STANDARD ORE MODEL ---
-      const geometry = new THREE.DodecahedronGeometry(1, 0);
-      const material = new THREE.MeshStandardMaterial({
-        color: new THREE.Color(color),
-        roughness: 0.7,
-        metalness: 0.6,
-        emissive: new THREE.Color(color),
-        emissiveIntensity: 0.2 + (intensity * 0.1),
-        flatShading: true,
-      });
-      mesh = new THREE.Mesh(geometry, material);
+      positions[i * 3] = Math.cos(angle) * radius;
+      positions[i * 3 + 1] = y;
+      positions[i * 3 + 2] = Math.sin(angle) * radius;
     }
+    return positions;
+  }, []);
 
-    scene.add(mesh);
+  useFrame((state) => {
+    const t = state.clock.getElapsedTime();
 
-    // Wireframe for standard high-tier ores
-    if (!isLiquidLuck && !isSoundShard && intensity > 5) {
-      // For groups (Sound Shard), we need to find the mesh inside
-      const targetMesh = mesh.isGroup ? mesh.children[0] : mesh;
-
-      const wireframe = new THREE.WireframeGeometry(targetMesh.geometry);
-      const line = new THREE.LineSegments(wireframe);
-      // @ts-ignore
-      line.material.depthTest = false;
-      // @ts-ignore
-      line.material.opacity = 0.1;
-      // @ts-ignore
-      line.material.transparent = true;
-      targetMesh.add(line);
+    if (particlesRef.current) {
+      particlesRef.current.rotation.y = -t * 0.2;
     }
+    if (ringRef1.current) {
+      ringRef1.current.rotation.z = t * 0.1;
+      ringRef1.current.rotation.x = Math.PI / 2 + Math.sin(t * 0.5) * 0.05;
+    }
+    if (ringRef2.current) {
+      ringRef2.current.rotation.z = -t * 0.15;
+      ringRef2.current.rotation.x = Math.PI / 2 + Math.cos(t * 0.3) * 0.05;
+    }
+  });
 
-    // Lighting Setup
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
-    scene.add(ambientLight);
+  return (
+    <group>
+      {/* Event Horizon (Pure Black) */}
+      <Sphere args={[0.8, 64, 64]}>
+        <meshBasicMaterial color="#000000" />
+      </Sphere>
 
-    const pointLight1 = new THREE.PointLight(0xffffff, 1);
-    pointLight1.position.set(5, 5, 5);
-    scene.add(pointLight1);
+      {/* Gravitational Lensing Shell (Glass distortion) */}
+      <Sphere args={[1.3, 32, 32]}>
+        <MeshTransmissionMaterial
+          backside
+          backsideThickness={5}
+          thickness={2}
+          roughness={0}
+          chromaticAberration={0.5}
+          anisotropicBlur={0.1}
+          distortion={1.5}
+          distortionScale={0.5}
+          temporalDistortion={0.1}
+          background={new THREE.Color('#000')}
+        />
+      </Sphere>
 
-    // Colored light from below/side to accent the material
-    const pointLight2 = new THREE.PointLight(color, 2);
-    pointLight2.position.set(-5, -5, 5);
-    scene.add(pointLight2);
+      {/* Accretion Disk Glow Rings */}
+      <group ref={ringRef1}>
+        <Torus args={[1.6, 0.05, 16, 100]} rotation={[Math.PI / 2, 0, 0]} scale={[1, 1, 0.1]}>
+          <meshBasicMaterial color="#ff6600" transparent opacity={0.8} toneMapped={false} />
+        </Torus>
+      </group>
+      <group ref={ringRef2}>
+        <Torus args={[2.2, 0.02, 16, 100]} rotation={[Math.PI / 2, 0, 0]} scale={[1, 1, 0.1]}>
+          <meshBasicMaterial color="#ffaa00" transparent opacity={0.4} toneMapped={false} />
+        </Torus>
+      </group>
 
-    // Animation Loop
-    let animationId: number;
-    let time = 0;
+      {/* Particle System */}
+      <points ref={particlesRef}>
+        <bufferGeometry>
+          <bufferAttribute
+            attach="attributes-position"
+            count={particlePositions.length / 3}
+            array={particlePositions}
+            itemSize={3}
+          />
+        </bufferGeometry>
+        <pointsMaterial
+          size={0.04}
+          color="#00aaff"
+          transparent
+          opacity={0.6}
+          blending={THREE.AdditiveBlending}
+          sizeAttenuation={true}
+          toneMapped={false}
+        />
+      </points>
 
-    const animate = () => {
-      animationId = requestAnimationFrame(animate);
-      time += 0.01;
-
-      if (mesh) {
-        if (isLiquidLuck && simplex && originalPositions) {
-          // LIQUID LUCK ANIMATION
-          mesh.rotation.y += 0.005;
-          const positionAttribute = mesh.geometry.attributes.position;
-          const vertex = new THREE.Vector3();
-
-          for (let i = 0; i < positionAttribute.count; i++) {
-            vertex.fromArray(originalPositions, i * 3);
-            const timeScale = time * 1.5;
-            const noiseScale = 1.5;
-            const noise = simplex.noise4D(vertex.x * noiseScale, vertex.y * noiseScale, vertex.z * noiseScale, timeScale);
-            const displacement = 1 + (noise * 0.15);
-            vertex.multiplyScalar(displacement);
-            positionAttribute.setXYZ(i, vertex.x, vertex.y, vertex.z);
-          }
-          mesh.geometry.attributes.position.needsUpdate = true;
-          mesh.geometry.computeVertexNormals();
-
-        } else if (isSoundShard && simplex && originalPositions) {
-          // SOUND SHARD ANIMATION
-
-          // 1. Waveform Displacement
-          const positionAttribute = mesh.geometry.attributes.position;
-          const vertex = new THREE.Vector3();
-
-          for (let i = 0; i < positionAttribute.count; i++) {
-            vertex.fromArray(originalPositions, i * 3);
-
-            // Create a "traveling wave" effect moving up the Y axis
-            // Frequency high, amplitude dependent on Y
-            const waveY = (vertex.y + 1.25) * 5; // Map Y to wave phase
-            const noiseVal = simplex.noise2D(waveY - (time * 10), 0); // Fast moving wave
-
-            // Distort X and Z based on the wave
-            const distortion = 1 + (noiseVal * 0.2 * (1 - Math.abs(vertex.y) / 2)); // Less distortion at tips
-
-            vertex.x *= distortion;
-            vertex.z *= distortion;
-
-            positionAttribute.setXYZ(i, vertex.x, vertex.y, vertex.z);
-          }
-          mesh.geometry.attributes.position.needsUpdate = true;
-          mesh.geometry.computeVertexNormals();
-
-          // 2. Rotation
-          mesh.rotation.y += 0.02; // Faster spin than normal
-
-          // 3. Ring Animation
-          if (mesh.userData && mesh.userData.rings) {
-            mesh.userData.rings.forEach((ring: any, i: number) => {
-              // Pulse scale
-              const s = 1 + Math.sin((time * 5) + (i * 2)) * 0.3;
-              ring.scale.set(s, s, s);
-
-              // Wobble rotation
-              ring.rotation.z = Math.sin(time * 2 + i) * 0.2;
-
-              // Fade opacity
-              if (ring.material) {
-                ring.material.opacity = 0.4 + Math.sin((time * 10) + i) * 0.2;
-              }
-            });
-          }
-
-        } else {
-          // STANDARD ORE ANIMATION
-          mesh.rotation.x += 0.005;
-          mesh.rotation.y += 0.005;
-          mesh.position.y = Math.sin(time * 2) * 0.1;
-        }
-      }
-
-      renderer.render(scene, camera);
-    };
-
-    animate();
-
-    // Cleanup
-    return () => {
-      cancelAnimationFrame(animationId);
-      if (containerRef.current && renderer.domElement) {
-        containerRef.current.removeChild(renderer.domElement);
-      }
-      renderer.dispose();
-    };
-  }, [libsLoaded, color, intensity, isLiquidLuck, isSoundShard]);
-
-  return <div ref={containerRef} className="w-full h-64 md:h-80 pointer-events-none" />;
+      {/* Lighting for the scene around it */}
+      <pointLight color="#ff6600" intensity={5} distance={10} />
+    </group>
+  );
 };
 
-// --- MAIN VISUALIZER COMPONENT ---
+const LiquidLuckModel = () => {
+  return (
+    <Float speed={2} rotationIntensity={1} floatIntensity={1}>
+      <Icosahedron args={[1, 0]}>
+        <MeshTransmissionMaterial
+          backside
+          samples={16}
+          thickness={2}
+          roughness={0.2}
+          chromaticAberration={1}
+          anisotropy={1}
+          distortion={1}
+          distortionScale={1}
+          temporalDistortion={0.2}
+          color="#ffd700"
+          emissive="#ffaa00"
+          emissiveIntensity={0.5}
+        />
+      </Icosahedron>
+      <Sparkles count={20} scale={3} size={4} speed={0.4} opacity={0.5} color="#ffd700" />
+    </Float>
+  );
+};
+
+const SoundShardModel = () => {
+  return (
+    <Float speed={5} rotationIntensity={0.5} floatIntensity={0.5}>
+      <mesh>
+        <cylinderGeometry args={[0.1, 0.1, 3, 8]} />
+        <MeshDistortMaterial
+          color="#6ee7b7"
+          emissive="#10b981"
+          emissiveIntensity={2}
+          distort={0.6}
+          speed={5}
+          toneMapped={false}
+        />
+      </mesh>
+      <Torus args={[1, 0.02, 16, 32]} rotation={[Math.PI / 2, 0, 0]}>
+        <meshBasicMaterial color="#6ee7b7" transparent opacity={0.5} />
+      </Torus>
+    </Float>
+  );
+};
+
+const HypercubeFragmentModel = () => {
+  const groupRef = useRef<THREE.Group>(null);
+  const coreRef = useRef<THREE.Mesh>(null);
+  const innerRef = useRef<THREE.Mesh>(null);
+  const outerRef = useRef<THREE.Mesh>(null);
+
+  useFrame((state) => {
+    const t = state.clock.getElapsedTime();
+    if (coreRef.current) {
+      coreRef.current.rotation.x = t * 0.5;
+      coreRef.current.rotation.y = t * 0.8;
+    }
+    if (innerRef.current) {
+      innerRef.current.rotation.x = t * 0.2;
+      innerRef.current.rotation.z = t * 0.2;
+    }
+    if (outerRef.current) {
+      outerRef.current.rotation.y = -t * 0.1;
+      outerRef.current.rotation.z = -t * 0.1;
+    }
+    if (groupRef.current) {
+      groupRef.current.position.y = Math.sin(t) * 0.1;
+    }
+  });
+
+  return (
+    <group ref={groupRef}>
+      {/* Core */}
+      <mesh ref={coreRef}>
+        <boxGeometry args={[0.8, 0.8, 0.8]} />
+        <meshStandardMaterial
+          color="#a855f7" // Purple-ish
+          emissive="#a855f7"
+          emissiveIntensity={2}
+          roughness={0.1}
+          metalness={1}
+        />
+      </mesh>
+
+      {/* Inner Wireframe */}
+      <mesh ref={innerRef}>
+        <boxGeometry args={[1.4, 1.4, 1.4]} />
+        <meshBasicMaterial color="#d8b4fe" wireframe transparent opacity={0.5} />
+      </mesh>
+
+      {/* Outer Wireframe */}
+      <mesh ref={outerRef}>
+        <boxGeometry args={[2, 2, 2]} />
+        <meshBasicMaterial color="#ffffff" wireframe transparent opacity={0.3} />
+      </mesh>
+
+      <Sparkles count={30} scale={4} size={2} speed={0.4} opacity={0.5} color="#a855f7" />
+      <pointLight color="#a855f7" intensity={5} distance={5} />
+    </group>
+  );
+};
+
+const FrozenTimeModel = () => {
+  return (
+    <Float speed={0.5} rotationIntensity={0.2} floatIntensity={0.5}>
+      {/* Core "Time" Sphere */}
+      <Sphere args={[0.4, 32, 32]}>
+        <meshBasicMaterial color="#ffffff" toneMapped={false} />
+      </Sphere>
+      <pointLight color="#06b6d4" intensity={2} distance={3} />
+
+      {/* Ice Crystal Shell */}
+      <Octahedron args={[1.2, 0]}>
+        <MeshTransmissionMaterial
+          backside
+          samples={16}
+          thickness={2}
+          roughness={0.1}
+          chromaticAberration={0.5}
+          anisotropy={0.5}
+          distortion={0.5}
+          distortionScale={0.5}
+          temporalDistortion={0.1}
+          color="#cffafe"
+          emissive="#06b6d4"
+          emissiveIntensity={0.2}
+        />
+      </Octahedron>
+
+      {/* Slow Rings */}
+      <group rotation={[Math.PI / 4, 0, 0]}>
+        <Torus args={[1.8, 0.02, 16, 100]} rotation={[Math.PI / 2, 0, 0]}>
+          <meshBasicMaterial color="#06b6d4" transparent opacity={0.4} />
+        </Torus>
+      </group>
+      <group rotation={[-Math.PI / 4, Math.PI / 4, 0]}>
+        <Torus args={[2.2, 0.02, 16, 100]} rotation={[Math.PI / 2, 0, 0]}>
+          <meshBasicMaterial color="#06b6d4" transparent opacity={0.2} />
+        </Torus>
+      </group>
+
+      {/* Suspended Particles */}
+      <Sparkles count={50} scale={4} size={3} speed={0.1} opacity={0.6} color="#cffafe" />
+    </Float>
+  );
+};
+
+const SolarPlasmaModel = () => {
+  return (
+    <Float speed={2} rotationIntensity={0.5} floatIntensity={0.5}>
+      {/* Core Sun */}
+      <Sphere args={[1, 32, 32]}>
+        <MeshDistortMaterial
+          color="#f97316"
+          emissive="#ef4444"
+          emissiveIntensity={2}
+          distort={0.4}
+          speed={3}
+          roughness={0}
+        />
+      </Sphere>
+
+      {/* Corona / Glow */}
+      <Sphere args={[1.2, 32, 32]}>
+        <meshBasicMaterial color="#eab308" transparent opacity={0.1} side={THREE.BackSide} />
+      </Sphere>
+
+      {/* Solar Flares Particles */}
+      <Sparkles count={100} scale={3} size={5} speed={0.4} opacity={0.5} color="#fbbf24" />
+      <pointLight color="#f97316" intensity={10} distance={10} />
+    </Float>
+  );
+};
+
+const AntimatterModel = () => {
+  return (
+    <Float speed={5} rotationIntensity={2} floatIntensity={2}>
+      {/* Unstable Core */}
+      <Sphere args={[0.8, 32, 32]}>
+        <MeshDistortMaterial
+          color="#000000"
+          emissive="#8b5cf6"
+          emissiveIntensity={1.5}
+          distort={0.8}
+          speed={5}
+          roughness={0.2}
+        />
+      </Sphere>
+
+      {/* Containment Cage */}
+      <group rotation={[Math.PI / 4, Math.PI / 4, 0]}>
+        <Icosahedron args={[1.5, 0]}>
+          <meshBasicMaterial color="#4c1d95" wireframe transparent opacity={0.3} />
+        </Icosahedron>
+      </group>
+
+      {/* Chaotic Particles */}
+      <Sparkles count={80} scale={4} size={2} speed={2} opacity={0.8} color="#d8b4fe" noise={1} />
+      <pointLight color="#8b5cf6" intensity={5} distance={8} />
+    </Float>
+  );
+};
+
+const CrystallizedThoughtModel = () => {
+  return (
+    <Float speed={2} rotationIntensity={1} floatIntensity={1}>
+      <Icosahedron args={[1, 2]}>
+        <MeshDistortMaterial
+          color="#ec4899"
+          emissive="#be185d"
+          emissiveIntensity={1}
+          distort={0.6}
+          speed={2}
+          roughness={0.2}
+        />
+      </Icosahedron>
+      <Icosahedron args={[1.2, 0]}>
+        <meshBasicMaterial color="#fbcfe8" wireframe transparent opacity={0.3} />
+      </Icosahedron>
+      <Sparkles count={40} scale={3} size={3} speed={0.4} opacity={0.6} color="#fbcfe8" />
+      <pointLight color="#ec4899" intensity={5} distance={5} />
+    </Float>
+  );
+};
+
+const SolidLightModel = () => {
+  return (
+    <Float speed={1} rotationIntensity={0.5} floatIntensity={0.5}>
+      {/* Light Bar */}
+      <mesh>
+        <boxGeometry args={[0.5, 2, 0.5]} />
+        <meshStandardMaterial
+          color="#ffffff"
+          emissive="#ffffff"
+          emissiveIntensity={4}
+          toneMapped={false}
+        />
+      </mesh>
+      {/* Halo */}
+      <mesh>
+        <boxGeometry args={[0.8, 2.2, 0.8]} />
+        <MeshTransmissionMaterial
+          backside
+          samples={8}
+          thickness={1}
+          roughness={0}
+          chromaticAberration={1}
+          anisotropy={1}
+          distortion={0.5}
+          color="#ffffff"
+        />
+      </mesh>
+      <Sparkles count={50} scale={4} size={4} speed={1} opacity={0.8} color="#ffffff" />
+      <pointLight color="#ffffff" intensity={5} distance={10} />
+    </Float>
+  );
+};
+
+const StandardOreModel = ({ color, intensity }: { color: string, intensity: number }) => {
+  return (
+    <Float speed={2} rotationIntensity={1} floatIntensity={0.5}>
+      <mesh>
+        <dodecahedronGeometry args={[1, 0]} />
+        <meshStandardMaterial
+          color={color}
+          roughness={0.4}
+          metalness={0.8}
+          emissive={color}
+          emissiveIntensity={0.2 + (intensity * 0.05)}
+        />
+      </mesh>
+      {intensity > 5 && (
+        <mesh scale={[1.1, 1.1, 1.1]}>
+          <dodecahedronGeometry args={[1, 0]} />
+          <meshBasicMaterial color={color} wireframe transparent opacity={0.2} />
+        </mesh>
+      )}
+    </Float>
+  );
+};
+
+const SceneContent: React.FC<{ item: ItemData; color: string; intensity: number }> = ({ item, color, intensity }) => {
+  const isBlackHole = item.text === "Black Hole Core";
+  const isLiquidLuck = item.text === "Liquid Luck";
+  const isSoundShard = item.text === "Sound Shard";
+  const isHypercube = item.text === "Hypercube Fragment";
+  const isFrozenTime = item.text === "Frozen Time";
+  const isSolarPlasma = item.text === "Solar Plasma";
+  const isAntimatter = item.text === "Antimatter";
+  const isCrystallizedThought = item.text === "Crystallized Thought";
+  const isSolidLight = item.text === "Solid Light";
+
+  return (
+    <>
+      <ambientLight intensity={0.5} />
+      <pointLight position={[10, 10, 10]} intensity={1} />
+      <pointLight position={[-10, -10, -10]} color={color} intensity={2} />
+
+      {isBlackHole ? (
+        <BlackHoleModel />
+      ) : isLiquidLuck ? (
+        <LiquidLuckModel />
+      ) : isSoundShard ? (
+        <SoundShardModel />
+      ) : isHypercube ? (
+        <HypercubeFragmentModel />
+      ) : isFrozenTime ? (
+        <FrozenTimeModel />
+      ) : isSolarPlasma ? (
+        <SolarPlasmaModel />
+      ) : isAntimatter ? (
+        <AntimatterModel />
+      ) : isCrystallizedThought ? (
+        <CrystallizedThoughtModel />
+      ) : isSolidLight ? (
+        <SolidLightModel />
+      ) : (
+        <StandardOreModel color={color} intensity={intensity} />
+      )}
+
+      {/* Environment Effects */}
+      {isBlackHole ? (
+        <>
+          <Stars radius={100} depth={50} count={5000} factor={4} saturation={0} fade speed={1} />
+          <EffectComposer>
+            <Bloom luminanceThreshold={0} mipmapBlur intensity={1.5} radius={0.6} />
+            <Noise opacity={0.1} />
+            <Vignette eskil={false} offset={0.1} darkness={1.1} />
+          </EffectComposer>
+        </>
+      ) : (
+        <EffectComposer>
+          <Bloom luminanceThreshold={1} mipmapBlur intensity={0.5} radius={0.4} />
+        </EffectComposer>
+      )}
+
+      <OrbitControls enablePan={false} autoRotate autoRotateSpeed={isBlackHole ? 0.5 : 2} />
+    </>
+  );
+};
+
+// --- MAIN COMPONENT ---
 
 export const ItemVisualizer: React.FC<Props> = ({ item, onClose }) => {
   const tier = RARITY_TIERS[item.rarityId];
@@ -283,24 +476,19 @@ export const ItemVisualizer: React.FC<Props> = ({ item, onClose }) => {
 
   const ref = useRef<HTMLDivElement>(null);
 
+  // 3D tilt effect for the card container
   const x = useMotionValue(0);
   const y = useMotionValue(0);
-
   const mouseX = useSpring(x, { stiffness: 500, damping: 50 });
   const mouseY = useSpring(y, { stiffness: 500, damping: 50 });
+  const rotateX = useTransform(mouseY, [-0.5, 0.5], ["10deg", "-10deg"]);
+  const rotateY = useTransform(mouseX, [-0.5, 0.5], ["-10deg", "10deg"]);
 
-  const rotateX = useTransform(mouseY, [-0.5, 0.5], ["15deg", "-15deg"]);
-  const rotateY = useTransform(mouseX, [-0.5, 0.5], ["-15deg", "15deg"]);
-
-  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!ref.current) return;
     const rect = ref.current.getBoundingClientRect();
-    const width = rect.width;
-    const height = rect.height;
-    const mouseXRel = e.clientX - rect.left;
-    const mouseYRel = e.clientY - rect.top;
-    const xPct = mouseXRel / width - 0.5;
-    const yPct = mouseYRel / height - 0.5;
+    const xPct = (e.clientX - rect.left) / rect.width - 0.5;
+    const yPct = (e.clientY - rect.top) / rect.height - 0.5;
     x.set(xPct);
     y.set(yPct);
   };
@@ -310,130 +498,88 @@ export const ItemVisualizer: React.FC<Props> = ({ item, onClose }) => {
     y.set(0);
   };
 
-  // Detect item types
+  // Item Data
   const oreData = useMemo(() => ORES.find(o => o.name === item.text), [item.text]);
+  const isSpecial = item.text === "Black Hole Core" || item.text === "Liquid Luck" || item.text === "Sound Shard" || item.text === "Hypercube Fragment" || item.text === "Frozen Time" || item.text === "Solar Plasma" || item.text === "Antimatter" || item.text === "Crystallized Thought" || item.text === "Solid Light";
   const isOre = !!oreData;
-  const isLiquidLuck = item.text === "Liquid Luck";
-  const isSoundShard = item.text === "Sound Shard";
 
-  // Determine 3D Color
+  // Determine Visual Properties
   const modelColor = oreData ? oreData.glowColor : '#888';
-
   const borderClass = hasVariant ? variant.borderClass : tier.color;
-
-  // Calculate Intensity
   const intensity = (tier.id / 2) + (variant.multiplier > 1 ? 2 : 0);
 
   return (
     <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/90 backdrop-blur-md perspective-1000" onClick={onClose}>
       <motion.div
         ref={ref}
-        style={{
-          rotateX,
-          rotateY,
-          transformStyle: "preserve-3d",
-        }}
-        onMouseMove={handleMouseMove}
+        style={{ rotateX, rotateY, transformStyle: "preserve-3d" }}
+        // @ts-ignore
+        onPointerMove={handlePointerMove}
         onMouseLeave={handleMouseLeave}
         onClick={(e) => e.stopPropagation()}
         className={`
-            relative w-full max-w-md rounded-xl border-2 ${borderClass} bg-neutral-900 
+            relative w-full max-w-lg h-[600px] rounded-xl border-2 ${borderClass} bg-neutral-900 
             shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden group cursor-default flex flex-col
         `}
       >
-        {/* Holographic Shine Overlay */}
-        <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent opacity-0 group-hover:opacity-30 transition-opacity pointer-events-none mix-blend-overlay z-20" />
-
-        {/* Scanline Texture */}
-        <div className="absolute inset-0 opacity-20 pointer-events-none bg-[url('https://grainy-gradients.vercel.app/noise.svg')] filter contrast-150 brightness-1000 z-10" />
-
-        {/* Variant Glow */}
-        {hasVariant && (
-          <div className={`absolute inset-0 opacity-20 pointer-events-none ${variant.styleClass} blur-3xl z-0`} />
-        )}
-
-        {/* 3D Scene Container (Only for Ores or Special items like Sound Shard) */}
-        {(isOre || isSoundShard) && (
-          <div className="relative z-0 w-full bg-gradient-to-b from-black/50 to-transparent">
-            <ThreeScene
-              color={isSoundShard ? '#6ee7b7' : modelColor}
-              intensity={intensity}
-              isLiquidLuck={isLiquidLuck}
-              isSoundShard={isSoundShard}
-            />
-
-            {/* Floating Labels inside 3D view */}
-            <div className="absolute top-4 left-4 right-4 flex justify-between items-start pointer-events-none">
-              <div className="text-left">
-                <div className={`text-xs font-mono uppercase tracking-widest ${tier.textColor} drop-shadow-md`}>
-                  {tier.name} // NO.{item.rarityId}
-                </div>
-                {hasVariant && (
-                  <div className={`text-xs font-mono uppercase tracking-widest mt-1 ${variant.styleClass.split(' ')[0]}`}>
-                    VARIANT: {variant.name}
-                  </div>
-                )}
-              </div>
-              <div className="text-xs font-mono text-neutral-500 uppercase tracking-widest border border-neutral-700 px-2 py-1 rounded bg-black/50">
-                {isSoundShard ? 'ARTIFACT' : 'MATERIAL'}
-              </div>
-            </div>
+        {/* 3D Canvas Layer */}
+        {(isOre || isSpecial) && (
+          <div className="absolute inset-0 z-0">
+            <Canvas camera={{ position: [0, 0, 6], fov: 45 }} gl={{ antialias: false, alpha: true }}>
+              <SceneContent item={item} color={modelColor} intensity={intensity} />
+            </Canvas>
           </div>
         )}
 
-        {/* Content Layout */}
-        <div className={`relative z-10 flex flex-col items-center text-center space-y-4 p-8 ${(isOre || isSoundShard) ? 'pt-0 bg-gradient-to-t from-neutral-900 via-neutral-900 to-transparent' : 'pt-8'} transform translate-z-10`}>
+        {/* UI Overlay */}
+        <div className="relative z-10 h-full flex flex-col justify-between p-6 pointer-events-none">
 
-          {/* Header for Non-Ores */}
-          {(!isOre && !isSoundShard) && (
-            <div className="w-full flex justify-between items-start border-b border-white/10 pb-4 mb-4">
-              <div className="text-left">
-                <div className={`text-xs font-mono uppercase tracking-widest ${tier.textColor}`}>
-                  {tier.name} // NO.{item.rarityId}
-                </div>
-                {hasVariant && (
-                  <div className={`text-xs font-mono uppercase tracking-widest mt-1 ${variant.styleClass.split(' ')[0]}`}>
-                    VARIANT: {variant.name}
-                  </div>
-                )}
+          {/* Header */}
+          <div className="flex justify-between items-start border-b border-white/10 pb-4 bg-gradient-to-b from-neutral-900/80 to-transparent">
+            <div className="text-left">
+              <div className={`text-xs font-mono uppercase tracking-widest ${tier.textColor} drop-shadow-md`}>
+                {tier.name} // NO.{item.rarityId}
               </div>
-              <div className="text-right">
-                <div className="text-[10px] text-neutral-500 font-mono">
-                  SECURE ITEM
+              {hasVariant && (
+                <div className={`text-xs font-mono uppercase tracking-widest mt-1 ${variant.styleClass.split(' ')[0]}`}>
+                  VARIANT: {variant.name}
                 </div>
-                {hasVariant && (
-                  <div className="text-[10px] text-neutral-500 font-mono mt-1">
-                    x{variant.multiplier} RARITY
-                  </div>
-                )}
-              </div>
+              )}
             </div>
-          )}
+            <div className="text-xs font-mono text-neutral-500 uppercase tracking-widest border border-neutral-700 px-2 py-1 rounded bg-black/50">
+              {isSpecial ? 'ARTIFACT' : 'MATERIAL'}
+            </div>
+          </div>
 
-          <div className={(isOre || isSoundShard) ? "py-4" : "py-8"}>
-            <h1 className={`text-3xl md:text-4xl font-bold ${tier.textColor} drop-shadow-md mb-4 ${hasVariant ? variant.styleClass : ''}`}>
+          {/* Footer Info */}
+          <div className="pt-8 bg-gradient-to-t from-neutral-900 via-neutral-900/80 to-transparent pointer-events-auto">
+            <h1 className={`text-3xl md:text-4xl font-bold ${tier.textColor} drop-shadow-md mb-2 ${hasVariant ? variant.styleClass : ''}`}>
               {hasVariant ? variant.prefix : ''} {item.text}
             </h1>
-            <p className="text-sm font-mono text-neutral-400 leading-relaxed max-w-xs mx-auto">
+            <p className="text-sm font-mono text-neutral-400 leading-relaxed max-w-xs">
               {item.description}
             </p>
-          </div>
 
-          <div className="w-full pt-4 border-t border-white/10 flex flex-col gap-3">
-            {(isOre || isSoundShard) ? (
-              <div className="flex justify-between text-[10px] font-mono text-neutral-600 uppercase">
-                <span>MINT CONDITION</span>
-                <span>ID: {Math.random().toString(36).substring(7).toUpperCase()}</span>
+            <div className="mt-6 flex gap-2">
+              <div className="flex-1 text-[10px] font-mono text-neutral-600 uppercase border-t border-white/10 pt-2">
+                ID: {Math.random().toString(36).substring(7).toUpperCase()}
               </div>
-            ) : null}
-            <button
-              onClick={onClose}
-              className="w-full py-3 bg-neutral-800 hover:bg-neutral-700 text-neutral-400 hover:text-white font-mono text-xs tracking-widest uppercase transition-all"
-            >
-              CLOSE VISUALIZER
-            </button>
+              <button
+                onClick={onClose}
+                className="px-6 py-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-400 hover:text-white font-mono text-xs tracking-widest uppercase transition-all border border-neutral-700 hover:border-white"
+              >
+                CLOSE
+              </button>
+            </div>
           </div>
         </div>
+
+        {/* Decorative Overlays */}
+        <div className="absolute inset-0 pointer-events-none border-4 border-transparent rounded-xl mix-blend-overlay opacity-20 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] z-20" />
+        {hasVariant && (
+          <div className={`absolute inset-0 pointer-events-none border-2 ${variant.borderClass} opacity-50 z-20`} />
+        )}
+
       </motion.div>
     </div>
   );

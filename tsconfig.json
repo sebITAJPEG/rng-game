@@ -11,13 +11,17 @@
     ],
     "skipLibCheck": true,
     "types": [
-      "node"
+      "node",
+      "three",
+      "vite/client",
+      "@react-three/fiber"
     ],
     "moduleResolution": "bundler",
     "isolatedModules": true,
     "moduleDetection": "force",
     "allowJs": true,
     "jsx": "react-jsx",
+    "baseUrl": ".",
     "paths": {
       "@/*": [
         "./*"
