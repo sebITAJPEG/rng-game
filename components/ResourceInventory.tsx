@@ -1,6 +1,5 @@
-
 import React from 'react';
-import { Ore, Fish, Plant } from '../types';
+import { Ore, Fish, Plant, RarityId, VariantId } from '../types';
 
 interface BaseItem {
     id: number;
@@ -9,6 +8,7 @@ interface BaseItem {
     color: string;
     glowColor: string;
     probability: number;
+    description: string; // Added description to interface
 }
 
 interface InventoryItem {
@@ -24,6 +24,7 @@ interface Props {
     onClose: () => void;
     onSell: () => void;
     onToggleLock?: (item: InventoryItem) => void;
+    onInspect?: (item: BaseItem) => void; // New prop
     config: {
         title: string;
         itemName: string;
@@ -36,7 +37,7 @@ interface Props {
     };
 }
 
-export const ResourceInventory: React.FC<Props> = ({ items, definitions, isOpen, onClose, onSell, onToggleLock, config }) => {
+export const ResourceInventory: React.FC<Props> = ({ items, definitions, isOpen, onClose, onSell, onToggleLock, onInspect, config }) => {
     if (!isOpen) return null;
 
     // Sort by ID (Common -> Rare)
@@ -83,9 +84,10 @@ export const ResourceInventory: React.FC<Props> = ({ items, definitions, isOpen,
                                 return (
                                     <div
                                         key={item.id}
+                                        onClick={() => onInspect && onInspect(def)}
                                         className={`
                                     p-3 rounded bg-background/40 border ${config.borderColor.replace('border-', 'border-opacity-30 border-')} hover:bg-text/5 transition-all
-                                    flex flex-col items-center text-center gap-2 relative group
+                                    flex flex-col items-center text-center gap-2 relative group cursor-pointer
                                 `}
                                         style={{
                                             borderColor: item.id > 15 ? def.glowColor : undefined,

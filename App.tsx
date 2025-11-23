@@ -419,6 +419,26 @@ export default function App() {
         }
     };
 
+    const handleInspectResource = (item: { id: number; name: string; description: string }) => {
+        // Map resource ID/Tier to RarityId for visualization color/effects
+        // Simple mapping based on ID groups of 10
+        const rarityId = Math.min(Math.ceil(item.id / 10), 15) as RarityId;
+
+        audioService.playClick();
+        setIsAutoSpinning(false);
+        setInspectedItem({
+            text: item.name,
+            description: item.description,
+            rarityId: rarityId || RarityId.COMMON,
+            variantId: VariantId.NONE
+        });
+        // Close the inventory that might be open
+        setIsOreInventoryOpen(false);
+        setIsFishInventoryOpen(false);
+        setIsPlantInventoryOpen(false);
+        setIsIndexOpen(false);
+    };
+
     // --- CRAFTING LOGIC ---
     const handleCraftItem = (item: CraftableItem) => {
         if (stats.balance < item.recipe.cost) return;
@@ -956,6 +976,7 @@ export default function App() {
                 onClose={() => setIsOreInventoryOpen(false)}
                 onSell={() => handleSellResources('ORES')}
                 onToggleLock={(item) => toggleResourceLock('ORES', item.id)}
+                onInspect={handleInspectResource}
                 config={{
                     title: "ORE SILO",
                     itemName: "RES",
@@ -975,6 +996,7 @@ export default function App() {
                 onClose={() => setIsFishInventoryOpen(false)}
                 onSell={() => handleSellResources('FISH')}
                 onToggleLock={(item) => toggleResourceLock('FISH', item.id)}
+                onInspect={handleInspectResource}
                 config={{
                     title: "CRYO TANK",
                     itemName: "SPECIMENS",
@@ -994,6 +1016,7 @@ export default function App() {
                 onClose={() => setIsPlantInventoryOpen(false)}
                 onSell={() => handleSellResources('PLANTS')}
                 onToggleLock={(item) => toggleResourceLock('PLANTS', item.id)}
+                onInspect={handleInspectResource}
                 config={{
                     title: "GREENHOUSE",
                     itemName: "PLANTS",
