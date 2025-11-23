@@ -11,8 +11,18 @@ export const Changelog: React.FC<Props> = ({ isOpen, onClose }) => {
 
   const updates = [
     {
-      version: "2.2.0",
+      version: "2.3.0",
       date: "Current",
+      changes: [
+        "MASSIVE CONTENT EXPANSION: Added 50 new Ores, 50 new Fish, and 100 new Plants.",
+        "ITEM OVERHAUL: Added 300+ new discoverable items across all rarity tiers.",
+        "BIZARRE DISCOVERIES: Encounter strange, abstract, and meta-physical objects.",
+        "BALANCING: Adjusted drop tables to accommodate new discoveries."
+      ]
+    },
+    {
+      version: "2.2.0",
+      date: "Previous",
       changes: [
         "NEW FEATURE: Customizable Themes - Switch between 4 visual styles (Default, Matrix, Cyberpunk, Paper).",
         "THEMES: Access theme switcher in Admin Panel to change the entire UI color scheme.",

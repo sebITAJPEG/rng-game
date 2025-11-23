@@ -191,3 +191,35 @@ export interface GameStats {
   // Signal Interceptor
   signalBuff: SignalBuff | null;
 }
+
+// --- CRAFTING TYPES ---
+
+export type CraftingCategory = 'GENERAL' | 'MINING' | 'FISHING' | 'HARVESTING';
+
+export interface CraftingMaterial {
+  type: 'ORE' | 'FISH' | 'PLANT' | 'ITEM';
+  id: number | string; // ID of the resource or item
+  count: number;
+}
+
+export interface CraftingRecipe {
+  materials: CraftingMaterial[];
+  cost: number;
+}
+
+export interface CraftableItem {
+  id: string;
+  name: string;
+  description: string;
+  tier: RarityId;
+  category: CraftingCategory;
+  bonuses: {
+    luck?: number; // Flat luck bonus
+    speed?: number; // Percentage speed reduction (0.1 = 10%)
+    yield?: number; // Extra resource chance
+    multi?: number; // Multi-roll/mine/fish bonus
+  };
+  recipe: CraftingRecipe;
+}
+
+export type CraftedItemsState = Record<string, boolean>; // ItemID -> Owned

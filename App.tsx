@@ -426,24 +426,23 @@ export default function App() {
         setInventory(prev => {
             let newInv = [...prev];
             drops.forEach(drop => {
-                if (drop.rarityId >= RarityId.RARE) {
-                    const existingIndex = newInv.findIndex(i =>
-                        i.text === drop.text &&
-                        i.rarityId === drop.rarityId &&
-                        i.variantId === drop.variantId
-                    );
-                    if (existingIndex >= 0) {
-                        newInv[existingIndex].count += 1;
-                    } else {
-                        newInv.push({
-                            text: drop.text,
-                            description: drop.description,
-                            rarityId: drop.rarityId,
-                            variantId: drop.variantId,
-                            count: 1,
-                            discoveredAt: Date.now()
-                        });
-                    }
+                // Save all items (Common, Uncommon, Rare, and above)
+                const existingIndex = newInv.findIndex(i =>
+                    i.text === drop.text &&
+                    i.rarityId === drop.rarityId &&
+                    i.variantId === drop.variantId
+                );
+                if (existingIndex >= 0) {
+                    newInv[existingIndex].count += 1;
+                } else {
+                    newInv.push({
+                        text: drop.text,
+                        description: drop.description,
+                        rarityId: drop.rarityId,
+                        variantId: drop.variantId,
+                        count: 1,
+                        discoveredAt: Date.now()
+                    });
                 }
             });
             return newInv;
