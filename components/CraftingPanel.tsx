@@ -1,6 +1,6 @@
-import React, { useState, useMemo } from 'react';
-import { CraftableItem, CraftingCategory, GameStats, OreInventoryItem, FishInventoryItem, PlantInventoryItem } from '../types';
-import { ORES, FISH, PLANTS } from '../constants';
+import React, { useState } from 'react';
+import { CraftableItem, CraftingCategory, GameStats, OreInventoryItem, FishInventoryItem, PlantInventoryItem, DreamInventoryItem } from '../types';
+import { ORES, FISH, PLANTS, DREAMS } from '../constants';
 import { CRAFTABLE_ITEMS } from '../craftingData';
 import { audioService } from '../services/audioService';
 
@@ -11,13 +11,14 @@ interface Props {
     oreInventory: OreInventoryItem[];
     fishInventory: FishInventoryItem[];
     plantInventory: PlantInventoryItem[];
+    dreamInventory: DreamInventoryItem[]; // Added this
     onCraft: (item: CraftableItem) => void;
     onEquip: (item: CraftableItem) => void;
     onUnequip: (item: CraftableItem) => void;
 }
 
 export const CraftingPanel: React.FC<Props> = ({
-    isOpen, onClose, stats, oreInventory, fishInventory, plantInventory, onCraft, onEquip, onUnequip
+    isOpen, onClose, stats, oreInventory, fishInventory, plantInventory, dreamInventory, onCraft, onEquip, onUnequip
 }) => {
     const [activeCategory, setActiveCategory] = useState<CraftingCategory>('GENERAL');
 
@@ -32,24 +33,27 @@ export const CraftingPanel: React.FC<Props> = ({
         return a.tier - b.tier;
     });
 
-    const getMaterialCount = (type: 'ORE' | 'FISH' | 'PLANT' | 'ITEM', id: number | string) => {
+    const getMaterialCount = (type: 'ORE' | 'FISH' | 'PLANT' | 'DREAM' | 'ITEM', id: number | string) => {
         if (type === 'ORE') return oreInventory.find(i => i.id === Number(id))?.count || 0;
         if (type === 'FISH') return fishInventory.find(i => i.id === Number(id))?.count || 0;
         if (type === 'PLANT') return plantInventory.find(i => i.id === Number(id))?.count || 0;
+        if (type === 'DREAM') return dreamInventory.find(i => i.id === Number(id))?.count || 0;
         return 0;
     };
 
-    const getMaterialName = (type: 'ORE' | 'FISH' | 'PLANT' | 'ITEM', id: number | string) => {
+    const getMaterialName = (type: 'ORE' | 'FISH' | 'PLANT' | 'DREAM' | 'ITEM', id: number | string) => {
         if (type === 'ORE') return ORES.find(o => o.id === Number(id))?.name || `Ore #${id}`;
         if (type === 'FISH') return FISH.find(f => f.id === Number(id))?.name || `Fish #${id}`;
         if (type === 'PLANT') return PLANTS.find(p => p.id === Number(id))?.name || `Plant #${id}`;
+        if (type === 'DREAM') return DREAMS.find(d => d.id === Number(id))?.name || `Dream #${id}`;
         return `Item #${id}`;
     };
 
-    const getMaterialColor = (type: 'ORE' | 'FISH' | 'PLANT' | 'ITEM', id: number | string) => {
+    const getMaterialColor = (type: 'ORE' | 'FISH' | 'PLANT' | 'DREAM' | 'ITEM', id: number | string) => {
         if (type === 'ORE') return ORES.find(o => o.id === Number(id))?.color || 'text-gray-500';
         if (type === 'FISH') return FISH.find(f => f.id === Number(id))?.color || 'text-gray-500';
         if (type === 'PLANT') return PLANTS.find(p => p.id === Number(id))?.color || 'text-gray-500';
+        if (type === 'DREAM') return DREAMS.find(d => d.id === Number(id))?.color || 'text-purple-400';
         return 'text-gray-500';
     };
 
@@ -73,13 +77,13 @@ export const CraftingPanel: React.FC<Props> = ({
                 </div>
 
                 {/* Category Tabs */}
-                <div className="flex border-b border-neutral-800 bg-neutral-950/50">
-                    {(['GENERAL', 'MINING', 'FISHING', 'HARVESTING'] as CraftingCategory[]).map(cat => (
+                <div className="flex border-b border-neutral-800 bg-neutral-950/50 overflow-x-auto no-scrollbar">
+                    {(['GENERAL', 'MINING', 'FISHING', 'HARVESTING', 'DREAMING'] as CraftingCategory[]).map(cat => (
                         <button
                             key={cat}
                             onClick={() => { setActiveCategory(cat); audioService.playClick(); }}
                             className={`
-                flex-1 py-4 text-xs font-mono font-bold tracking-widest transition-all border-b-2
+                flex-1 py-4 px-4 text-xs font-mono font-bold tracking-widest transition-all border-b-2 min-w-[100px]
                 ${activeCategory === cat
                                     ? 'border-white text-white bg-neutral-800'
                                     : 'border-transparent text-neutral-500 hover:bg-neutral-900 hover:text-neutral-300'
@@ -124,7 +128,7 @@ export const CraftingPanel: React.FC<Props> = ({
                                     {/* Header */}
                                     <div className="flex justify-between items-start">
                                         <div>
-                                            <div className="flex items-center gap-2">
+                                            <div className="flex items-center gap-2 flex-wrap">
                                                 <h3 className={`font-bold font-mono ${equipped ? 'text-green-400' : isOwned ? 'text-white' : 'text-neutral-400'}`}>
                                                     {item.name}
                                                 </h3>
@@ -135,7 +139,7 @@ export const CraftingPanel: React.FC<Props> = ({
                                                     T{item.tier}
                                                 </span>
                                             </div>
-                                            <p className="text-xs text-neutral-400 font-mono mt-1 h-8">{item.description}</p>
+                                            <p className="text-xs text-neutral-400 font-mono mt-1 min-h-[2rem]">{item.description}</p>
                                         </div>
                                     </div>
 

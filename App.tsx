@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { GameStats, Drop, InventoryItem, RarityId, ItemData, VariantId, OreInventoryItem, FishInventoryItem, PlantInventoryItem, CraftableItem } from './types';
-import { RARITY_TIERS, TRANSLATIONS, VARIANTS, ACHIEVEMENTS, SPEED_TIERS, ENTROPY_THRESHOLD, BURST_COST, MINING_SPEEDS, ORES, FISHING_SPEEDS, FISH, HARVESTING_SPEEDS, PLANTS } from './constants';
+import { RARITY_TIERS, TRANSLATIONS, VARIANTS, ACHIEVEMENTS, SPEED_TIERS, ENTROPY_THRESHOLD, BURST_COST, MINING_SPEEDS, ORES, FISHING_SPEEDS, FISH, HARVESTING_SPEEDS, PLANTS, DREAMS } from './constants';
 import { CRAFTABLE_ITEMS } from './craftingData';
 import { generateDrop } from './services/rngService';
 import { mineOre } from './services/miningService';
@@ -22,9 +22,14 @@ import { HarvestingPanel } from './components/HarvestingPanel';
 import { GachaTerminal } from './components/GachaTerminal';
 
 import { useSubGame } from './hooks/useSubGame';
+import { useDreaming } from './hooks/useDreaming';
 import { ResourceInventory } from './components/ResourceInventory';
 import { CraftingPanel } from './components/CraftingPanel';
 import { THEMES, applyTheme } from './themes';
+import { DreamingPanel } from './components/DreamingPanel';
+import { DreamInventory } from './components/DreamInventory';
+import { MiniTicTacToe } from './components/MiniTicTacToe';
+import { TrophySystem } from './components/TrophySystem';
 
 export default function App() {
     // State
@@ -68,7 +73,10 @@ export default function App() {
                 harvestingSpeedLevel: parsed.harvestingSpeedLevel || 0,
                 harvestingLuckLevel: parsed.harvestingLuckLevel || 0,
                 harvestingMultiLevel: parsed.harvestingMultiLevel || 1,
-                gachaCredits: parsed.gachaCredits || 0
+                totalDreamt: parsed.totalDreamt || 0,
+                bestDreamFound: parsed.bestDreamFound || 0,
+                gachaCredits: parsed.gachaCredits || 0,
+                ticTacToeWins: parsed.ticTacToeWins || 0
             };
         }
         return {
@@ -100,7 +108,10 @@ export default function App() {
             harvestingSpeedLevel: 0,
             harvestingLuckLevel: 0,
             harvestingMultiLevel: 1,
-            gachaCredits: 0
+            totalDreamt: 0,
+            bestDreamFound: 0,
+            gachaCredits: 0,
+            ticTacToeWins: 0
         };
     });
 
@@ -111,11 +122,12 @@ export default function App() {
     });
 
     const [isAutoSpinning, setIsAutoSpinning] = useState(false);
-    const [activeRightPanel, setActiveRightPanel] = useState<'MINING' | 'FISHING' | 'HARVESTING'>('MINING');
+    const [activeRightPanel, setActiveRightPanel] = useState<'MINING' | 'FISHING' | 'HARVESTING' | 'DREAMING'>('MINING');
     const [isInventoryOpen, setIsInventoryOpen] = useState(false);
     const [isOreInventoryOpen, setIsOreInventoryOpen] = useState(false);
     const [isFishInventoryOpen, setIsFishInventoryOpen] = useState(false);
     const [isPlantInventoryOpen, setIsPlantInventoryOpen] = useState(false);
+    const [isDreamInventoryOpen, setIsDreamInventoryOpen] = useState(false);
     const [isAdminOpen, setIsAdminOpen] = useState(false);
     const [isChangelogOpen, setIsChangelogOpen] = useState(false);
     const [isIndexOpen, setIsIndexOpen] = useState(false);
@@ -151,23 +163,44 @@ export default function App() {
     useEffect(() => { localStorage.setItem('textbound_settings_autostop', autoStopRarity.toString()); }, [autoStopRarity]);
     useEffect(() => { applyTheme(currentTheme); localStorage.setItem('textbound_theme', currentTheme); }, [currentTheme]);
 
+    // --- CALCOLO BONUS TROFEO ---
+    const getTrophyMultiplier = useCallback((wins: number) => {
+        if (wins >= 500) return 3.00;
+        if (wins >= 300) return 2.75;
+        if (wins >= 200) return 2.50;
+        if (wins >= 100) return 2.25;
+        if (wins >= 50) return 2.00;
+        if (wins >= 30) return 1.75;
+        if (wins >= 15) return 1.50;
+        if (wins >= 5) return 1.25;
+        return 1.0;
+    }, []);
+
+    const trophyLuckMult = getTrophyMultiplier(stats.ticTacToeWins || 0);
+
     const getCraftingBonuses = useCallback((category: string) => {
         let bonusSpeed = 0;
         let bonusLuck = 0;
         let bonusMulti = 0;
+        let bonusStability = 0;
+        let bonusStabilityRegen = 0;
+
         const equipped = stats.equippedItems || {};
         const boostId = equipped[`${category}_BOOST`];
         const multiId = equipped[`${category}_MULTI`];
         const idsToCheck = [boostId, multiId].filter(id => id) as string[];
+
         idsToCheck.forEach(id => {
             const item = CRAFTABLE_ITEMS.find(i => i.id === id);
             if (item) {
                 if (item.bonuses.speed) bonusSpeed += item.bonuses.speed;
                 if (item.bonuses.luck) bonusLuck += item.bonuses.luck;
                 if (item.bonuses.multi) bonusMulti += item.bonuses.multi;
+                if (item.bonuses.stability) bonusStability += item.bonuses.stability;
+                if (item.bonuses.stabilityRegen) bonusStabilityRegen += item.bonuses.stabilityRegen;
             }
         });
-        return { bonusSpeed, bonusLuck, bonusMulti };
+        return { bonusSpeed, bonusLuck, bonusMulti, bonusStability, bonusStabilityRegen };
     }, [stats.equippedItems]);
 
     const getEquippedItemName = (category: string, type: 'BOOST' | 'MULTI') => {
@@ -204,7 +237,7 @@ export default function App() {
         dropFn: mineOre,
         playSound: audioService.playMineSound.bind(audioService),
         speed: miningSpeed,
-        luck: (miningLuckMultiplier * (1 + (stats.miningLuckLevel * 0.5))) + mineBonuses.bonusLuck,
+        luck: ((miningLuckMultiplier * (1 + (stats.miningLuckLevel * 0.5))) + mineBonuses.bonusLuck) * trophyLuckMult,
         multi: (stats.miningMultiLevel || 1) + mineBonuses.bonusMulti,
         thresholds: { boom: 30, rare: 10, boomDivisor: 6 }
     }, {
@@ -225,7 +258,7 @@ export default function App() {
         dropFn: catchFish,
         playSound: audioService.playFishSound.bind(audioService),
         speed: fishingSpeed,
-        luck: (fishingLuckMultiplier * (1 + (stats.fishingLuckLevel * 0.5))) + fishBonuses.bonusLuck,
+        luck: ((fishingLuckMultiplier * (1 + (stats.fishingLuckLevel * 0.5))) + fishBonuses.bonusLuck) * trophyLuckMult,
         multi: (stats.fishingMultiLevel || 1) + fishBonuses.bonusMulti,
         thresholds: { boom: 25, rare: 15, boomDivisor: 3 }
     }, {
@@ -246,7 +279,7 @@ export default function App() {
         dropFn: harvestPlant,
         playSound: audioService.playHarvestSound.bind(audioService),
         speed: harvestingSpeed,
-        luck: (harvestingLuckMultiplier * (1 + (stats.harvestingLuckLevel * 0.5))) + harvBonuses.bonusLuck,
+        luck: ((harvestingLuckMultiplier * (1 + (stats.harvestingLuckLevel * 0.5))) + harvBonuses.bonusLuck) * trophyLuckMult,
         multi: (stats.harvestingMultiLevel || 1) + harvBonuses.bonusMulti,
         thresholds: { boom: 25, rare: 15, boomDivisor: 3 }
     }, {
@@ -261,6 +294,28 @@ export default function App() {
         playCoinWin: audioService.playCoinWin.bind(audioService)
     });
 
+    // Dreaming
+    const dreamBonuses = getCraftingBonuses('DREAMING');
+    const dreamingGame = useDreaming({
+        storageKey: 'textbound_dream_inventory',
+        baseStability: 100 + dreamBonuses.bonusStability
+    }, {
+        onUpdateStats: (count, bestId) => setStats(prev => ({
+            ...prev,
+            totalDreamt: (prev.totalDreamt || 0) + count,
+            bestDreamFound: Math.max(prev.bestDreamFound || 0, bestId)
+        })),
+        onCrash: () => { },
+        onWake: (count) => { }
+    });
+
+    // Update Dreaming Params
+    useEffect(() => {
+        const currentLuck = (1 + (stats.luckLevel || 0) * 0.2) * luckMultiplier * trophyLuckMult;
+        dreamingGame.updateParams(currentLuck, dreamBonuses.bonusStabilityRegen || 0);
+    }, [stats.luckLevel, luckMultiplier, dreamBonuses.bonusStabilityRegen, trophyLuckMult]);
+
+    // Achievement check logic...
     useEffect(() => {
         const newUnlocks: string[] = [];
         ACHIEVEMENTS.forEach(ach => {
@@ -278,6 +333,10 @@ export default function App() {
             }));
         }
     }, [stats, inventory]);
+
+    // ---------------------------------------------------------
+    // Helper Functions & Handlers
+    // ---------------------------------------------------------
 
     const toggleMute = () => {
         const newState = !isMuted;
@@ -340,6 +399,23 @@ export default function App() {
         }
     };
 
+    const handleSellDreams = () => {
+        let totalValue = 0;
+        dreamingGame.inventory.forEach(item => {
+            const def = DREAMS.find(d => d.id === item.id);
+            if (def) {
+                const unitValue = Math.max(5, Math.floor(def.probability / 3));
+                totalValue += unitValue * item.count;
+            }
+        });
+
+        if (totalValue > 0) {
+            audioService.playCoinWin(5);
+            setStats(prev => ({ ...prev, balance: prev.balance + totalValue }));
+            dreamingGame.setInventory([]);
+        }
+    };
+
     const handleInspectResource = (item: { id: number; name: string; description: string }) => {
         const rarityId = Math.min(Math.ceil(item.id / 10), 15) as RarityId;
         audioService.playClick();
@@ -362,6 +438,7 @@ export default function App() {
             if (mat.type === 'ORE') return (miningGame.inventory.find(i => i.id === mat.id)?.count || 0) < mat.count;
             if (mat.type === 'FISH') return (fishingGame.inventory.find(i => i.id === mat.id)?.count || 0) < mat.count;
             if (mat.type === 'PLANT') return (harvestingGame.inventory.find(i => i.id === mat.id)?.count || 0) < mat.count;
+            if (mat.type === 'DREAM') return (dreamingGame.inventory.find(i => i.id === mat.id)?.count || 0) < mat.count;
             return true;
         });
         if (missingMaterial) return;
@@ -377,6 +454,8 @@ export default function App() {
                 fishingGame.setInventory(prev => prev.map(i => i.id === mat.id ? { ...i, count: i.count - mat.count } : i).filter(i => i.count > 0));
             } else if (mat.type === 'PLANT') {
                 harvestingGame.setInventory(prev => prev.map(i => i.id === mat.id ? { ...i, count: i.count - mat.count } : i).filter(i => i.count > 0));
+            } else if (mat.type === 'DREAM') {
+                dreamingGame.setInventory(prev => prev.map(i => i.id === mat.id ? { ...i, count: i.count - mat.count } : i).filter(i => i.count > 0));
             }
         });
         audioService.playRaritySound(RarityId.MYTHICAL);
@@ -402,39 +481,7 @@ export default function App() {
         });
     };
 
-    const handleRoll = useCallback((manualBatchSize?: number) => {
-        if (!manualBatchSize) audioService.playRollSound();
-        const genBonuses = getCraftingBonuses('GENERAL');
-        const rollsToPerform = manualBatchSize || (stats.multiRollLevel + genBonuses.bonusMulti);
-        const generatedDrops: Drop[] = [];
-        let currentEntropy = stats.entropy;
-        const levelLuck = 1 + (stats.luckLevel * 0.2);
-        const totalLuckMult = luckMultiplier * (levelLuck + genBonuses.bonusLuck);
-        let effectiveLuck = totalLuckMult;
-        let consumedPity = false;
-        if (currentEntropy >= ENTROPY_THRESHOLD) {
-            effectiveLuck = totalLuckMult * 500;
-            consumedPity = true;
-        }
-        for (let i = 0; i < rollsToPerform; i++) {
-            const useLuck = (i === 0 && consumedPity) ? effectiveLuck : totalLuckMult;
-            const drop = generateDrop(stats.totalRolls + i, useLuck);
-            generatedDrops.push(drop);
-            if (drop.rarityId >= RarityId.LEGENDARY) {
-                currentEntropy = 0;
-                consumedPity = false;
-            } else {
-                if (!consumedPity) currentEntropy++;
-                else currentEntropy = 0;
-            }
-        }
-        const bestDrop = getBestDrop(generatedDrops);
-        if (!bestDrop) return;
-        setCurrentDrops(generatedDrops);
-        batchUpdateStatsAndInventory(generatedDrops, rollsToPerform, currentEntropy);
-        audioService.playBoom(bestDrop.rarityId);
-    }, [stats.totalRolls, stats.multiRollLevel, stats.entropy, luckMultiplier, stats.luckLevel, stats.equippedItems, getCraftingBonuses]);
-
+    // Define batchUpdateStatsAndInventory BEFORE handleRoll
     const batchUpdateStatsAndInventory = (drops: Drop[], rollsCount: number, finalEntropy: number) => {
         let creditsFound = 0;
         if (Math.random() < (0.001 * rollsCount)) creditsFound = 1;
@@ -478,6 +525,62 @@ export default function App() {
         });
     };
 
+    const handleRoll = useCallback((manualBatchSize?: number) => {
+        if (!manualBatchSize) audioService.playRollSound();
+        const genBonuses = getCraftingBonuses('GENERAL');
+        const rollsToPerform = manualBatchSize || (stats.multiRollLevel + genBonuses.bonusMulti);
+        const generatedDrops: Drop[] = [];
+        let currentEntropy = stats.entropy;
+        const levelLuck = 1 + (stats.luckLevel * 0.2);
+        const totalLuckMult = luckMultiplier * (levelLuck + genBonuses.bonusLuck) * trophyLuckMult;
+        let effectiveLuck = totalLuckMult;
+        let consumedPity = false;
+        if (currentEntropy >= ENTROPY_THRESHOLD) {
+            effectiveLuck = totalLuckMult * 500;
+            consumedPity = true;
+        }
+        for (let i = 0; i < rollsToPerform; i++) {
+            const useLuck = (i === 0 && consumedPity) ? effectiveLuck : totalLuckMult;
+            const drop = generateDrop(stats.totalRolls + i, useLuck);
+            generatedDrops.push(drop);
+            if (drop.rarityId >= RarityId.LEGENDARY) {
+                currentEntropy = 0;
+                consumedPity = false;
+            } else {
+                if (!consumedPity) currentEntropy++;
+                else currentEntropy = 0;
+            }
+        }
+        const bestDrop = getBestDrop(generatedDrops);
+        if (!bestDrop) return;
+        setCurrentDrops(generatedDrops);
+        batchUpdateStatsAndInventory(generatedDrops, rollsToPerform, currentEntropy);
+        audioService.playBoom(bestDrop.rarityId);
+    }, [stats.totalRolls, stats.multiRollLevel, stats.entropy, luckMultiplier, stats.luckLevel, stats.equippedItems, getCraftingBonuses, trophyLuckMult]);
+
+    // --- FIX AUTOSPIN PRINCIPALE ---
+    const savedHandleRoll = useRef(handleRoll);
+    useEffect(() => {
+        savedHandleRoll.current = handleRoll;
+    }, [handleRoll]);
+
+    useEffect(() => {
+        if (isAutoSpinning && !inspectedItem) {
+            if (autoSpinRef.current) clearInterval(autoSpinRef.current);
+
+            autoSpinRef.current = window.setInterval(() => {
+                if (savedHandleRoll.current) savedHandleRoll.current();
+            }, autoSpinSpeed);
+        } else {
+            if (autoSpinRef.current) clearInterval(autoSpinRef.current);
+            autoSpinRef.current = null;
+        }
+        return () => {
+            if (autoSpinRef.current) clearInterval(autoSpinRef.current);
+        };
+    }, [isAutoSpinning, autoSpinSpeed, inspectedItem]);
+    // -------------------------------
+
     const handleInspectItem = (item: InventoryItem) => {
         audioService.playClick();
         setIsAutoSpinning(false);
@@ -507,29 +610,11 @@ export default function App() {
         handleRoll(50);
     };
 
-    useEffect(() => {
-        if (isAutoSpinning && !inspectedItem) {
-            autoSpinRef.current = window.setInterval(() => handleRoll(), autoSpinSpeed);
-        } else {
-            if (autoSpinRef.current) clearInterval(autoSpinRef.current);
-            autoSpinRef.current = null;
-        }
-        return () => {
-            if (autoSpinRef.current) clearInterval(autoSpinRef.current);
-        };
-    }, [isAutoSpinning, handleRoll, autoSpinSpeed, inspectedItem]);
-
-    const formatProb = (p: number, variantMultiplier: number = 1) => {
-        const levelLuck = 1 + (stats.luckLevel * 0.2);
-        const genBonuses = getCraftingBonuses('GENERAL');
-        const totalLuck = luckMultiplier * (levelLuck + genBonuses.bonusLuck);
-        const adjustedP = (p / totalLuck) * variantMultiplier;
-        if (adjustedP >= 1000000000000) return `1 in ${Math.round(adjustedP / 1000000000000)}T`;
-        if (adjustedP >= 1000000000) return `1 in ${Math.round(adjustedP / 1000000000 * 10) / 10}B`;
-        if (adjustedP >= 1000000) return `1 in ${Math.round(adjustedP / 1000000 * 10) / 10}M`;
-        if (adjustedP >= 1000) return `1 in ${Math.round(adjustedP / 1000 * 10) / 10}k`;
-        if (adjustedP < 1) return T.UI.GUARANTEED;
-        return `1 in ${Math.round(adjustedP)}`;
+    const handleTicTacToeWin = () => {
+        setStats(prev => ({
+            ...prev,
+            ticTacToeWins: (prev.ticTacToeWins || 0) + 1
+        }));
     };
 
     const handleLogSliderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -540,8 +625,11 @@ export default function App() {
 
     const activeRarityVFX = inspectedItem ? inspectedItem.rarityId : getBestDrop(currentDrops)?.rarityId;
     const tierOptions = Object.values(RARITY_TIERS).sort((a, b) => a.id - b.id);
-    const hasSignalBuff = false;
-    const timeLeft = 0;
+    const getGeneralMulti = () => (stats.multiRollLevel || 1) + getCraftingBonuses('GENERAL').bonusMulti;
+    const currentGlobalLuck = (1 + (stats.luckLevel * 0.2) + getCraftingBonuses('GENERAL').bonusLuck) * luckMultiplier * trophyLuckMult;
+    const currentMineLuck = ((1 + (stats.miningLuckLevel * 0.5)) + getCraftingBonuses('MINING').bonusLuck) * trophyLuckMult;
+    const currentFishLuck = ((1 + (stats.fishingLuckLevel * 0.5)) + getCraftingBonuses('FISHING').bonusLuck) * trophyLuckMult;
+    const currentHarvLuck = ((1 + (stats.harvestingLuckLevel * 0.5)) + getCraftingBonuses('HARVESTING').bonusLuck) * trophyLuckMult;
 
     const toggleLock = (item: InventoryItem) => {
         setInventory(prev => prev.map(i => {
@@ -553,12 +641,18 @@ export default function App() {
         audioService.playClick();
     };
 
-    const currentGlobalLuck = (1 + (stats.luckLevel * 0.2) + getCraftingBonuses('GENERAL').bonusLuck) * luckMultiplier;
-    const currentMineLuck = (1 + (stats.miningLuckLevel * 0.5)) + getCraftingBonuses('MINING').bonusLuck;
-    const currentFishLuck = (1 + (stats.fishingLuckLevel * 0.5)) + getCraftingBonuses('FISHING').bonusLuck;
-    const currentHarvLuck = (1 + (stats.harvestingLuckLevel * 0.5)) + getCraftingBonuses('HARVESTING').bonusLuck;
-
-    const getGeneralMulti = () => (stats.multiRollLevel || 1) + getCraftingBonuses('GENERAL').bonusMulti;
+    const formatProb = (p: number, variantMultiplier: number = 1) => {
+        const levelLuck = 1 + (stats.luckLevel * 0.2);
+        const genBonuses = getCraftingBonuses('GENERAL');
+        const totalLuck = luckMultiplier * (levelLuck + genBonuses.bonusLuck) * trophyLuckMult;
+        const adjustedP = (p / totalLuck) * variantMultiplier;
+        if (adjustedP >= 1000000000000) return `1 in ${Math.round(adjustedP / 1000000000000)}T`;
+        if (adjustedP >= 1000000000) return `1 in ${Math.round(adjustedP / 1000000000 * 10) / 10}B`;
+        if (adjustedP >= 1000000) return `1 in ${Math.round(adjustedP / 1000000 * 10) / 10}M`;
+        if (adjustedP >= 1000) return `1 in ${Math.round(adjustedP / 1000 * 10) / 10}k`;
+        if (adjustedP < 1) return T.UI.GUARANTEED;
+        return `1 in ${Math.round(adjustedP)}`;
+    };
 
     return (
         <div className="relative min-h-screen bg-background text-text selection:bg-text selection:text-background overflow-hidden flex">
@@ -580,35 +674,45 @@ export default function App() {
 
                         {/* Stats Block (Left) */}
                         <div className="flex flex-col gap-4 pointer-events-auto max-h-[80vh] overflow-y-auto no-scrollbar">
-                            {/* Main Economy Stats */}
-                            <div className="space-y-1 font-mono text-xs md:text-sm text-text-dim bg-black/60 backdrop-blur p-3 rounded border border-white/10">
-                                <p>{T.UI.ROLLS}: <span className="text-text">{stats.totalRolls.toLocaleString()}</span></p>
-                                <p>BALANCE: <span className="text-yellow-500">{stats.balance.toLocaleString()}</span></p>
-                                <p>CREDITS: <span className="text-purple-400">{stats.gachaCredits}</span></p>
-                                <p>{T.UI.BEST}: <span className={`${RARITY_TIERS[stats.bestRarityFound]?.textColor || 'text-text'}`}>{T.RARITY_NAMES[stats.bestRarityFound]}</span></p>
 
-                                {/* NEW: Always visible Player Stats */}
-                                <div className="my-2 border-t border-white/10 pt-2">
-                                    <p>LUCK: <span className="text-green-400">{currentGlobalLuck.toFixed(2)}x</span></p>
-                                    <p>SPEED: <span className="text-cyan-400">{autoSpinSpeed}ms</span></p>
-                                    <p>BATCH: <span className="text-purple-300">x{getGeneralMulti()}</span></p>
+                            {/* Main Economy Stats with Mini Game */}
+                            <div className="flex items-start gap-2">
+                                <div className="space-y-1 font-mono text-xs md:text-sm text-text-dim bg-black/60 backdrop-blur p-3 rounded border border-white/10 min-w-[200px]">
+                                    <p>{T.UI.ROLLS}: <span className="text-text">{stats.totalRolls.toLocaleString()}</span></p>
+                                    <p>BALANCE: <span className="text-yellow-500">{stats.balance.toLocaleString()}</span></p>
+                                    <p>CREDITS: <span className="text-purple-400">{stats.gachaCredits}</span></p>
+                                    <p>{T.UI.BEST}: <span className={`${RARITY_TIERS[stats.bestRarityFound]?.textColor || 'text-text'}`}>{T.RARITY_NAMES[stats.bestRarityFound]}</span></p>
+
+                                    {/* Player Stats */}
+                                    <div className="my-2 border-t border-white/10 pt-2">
+                                        <p>LUCK: <span className="text-green-400">{currentGlobalLuck.toFixed(2)}x</span></p>
+                                        <p>SPEED: <span className="text-cyan-400">{autoSpinSpeed}ms</span></p>
+                                        <p>BATCH: <span className="text-purple-300">x{getGeneralMulti()}</span></p>
+                                    </div>
+
+                                    {stats.equippedTitle && (
+                                        <p>TITLE: <span className="text-yellow-400 font-bold border-b border-yellow-600">{stats.equippedTitle}</span></p>
+                                    )}
+                                    <button
+                                        onClick={() => setShowExtendedStats(!showExtendedStats)}
+                                        className="text-[10px] text-text-dim hover:text-white underline mt-2 uppercase"
+                                    >
+                                        {showExtendedStats ? '[-] HIDE SUB-GAMES' : '[+] SHOW SUB-GAMES'}
+                                    </button>
                                 </div>
 
-                                {stats.equippedTitle && (
-                                    <p>TITLE: <span className="text-yellow-400 font-bold border-b border-yellow-600">{stats.equippedTitle}</span></p>
-                                )}
-                                <button
-                                    onClick={() => setShowExtendedStats(!showExtendedStats)}
-                                    className="text-[10px] text-text-dim hover:text-white underline mt-2 uppercase"
-                                >
-                                    {showExtendedStats ? '[-] HIDE SUB-GAMES' : '[+] SHOW SUB-GAMES'}
-                                </button>
+                                {/* MINI TIC-TAC-TOE & TROPHY */}
+                                <div className="flex flex-col gap-2 pointer-events-auto">
+                                    <div className="flex">
+                                        <MiniTicTacToe onWin={handleTicTacToeWin} />
+                                        <TrophySystem wins={stats.ticTacToeWins || 0} />
+                                    </div>
+                                </div>
                             </div>
 
                             {/* Extended Stats Panel */}
                             {showExtendedStats && (
                                 <div className="flex flex-col gap-2 font-mono text-[10px] text-text-dim animate-fade-in-up">
-
                                     {/* GENERAL EQUIP */}
                                     <div className="bg-black/60 backdrop-blur p-3 rounded border border-white/10 space-y-1">
                                         <div className="text-white font-bold border-b border-white/10 mb-1 pb-1">GENERAL GEAR</div>
@@ -643,12 +747,30 @@ export default function App() {
                                         <p>MULTI: <span className="text-purple-300">{getEquippedItemName('HARVESTING', 'MULTI')}</span></p>
                                     </div>
 
+                                    {/* DREAMING - NEW SECTION */}
+                                    <div className="bg-black/60 backdrop-blur p-3 rounded border border-purple-900/30 space-y-1">
+                                        <div className="text-purple-400 font-bold border-b border-purple-900/30 mb-1 pb-1">DREAMING</div>
+                                        <p>BASE STABILITY: <span className="text-purple-300">{100 + (dreamBonuses.bonusStability || 0)}%</span></p>
+                                        <p>REGEN CHANCE: <span className="text-purple-300">{((dreamBonuses.bonusStabilityRegen || 0) * 100).toFixed(0)}%</span></p>
+                                        <p>BOOST: <span className="text-yellow-200">{getEquippedItemName('DREAMING', 'BOOST')}</span></p>
+                                        <p>MULTI: <span className="text-purple-300">{getEquippedItemName('DREAMING', 'MULTI')}</span></p>
+                                        <p>TOTAL DREAMS: <span className="text-white">{stats.totalDreamt}</span></p>
+                                    </div>
+
+                                    {/* TROPHY BONUS INFO */}
+                                    <div className="bg-black/60 backdrop-blur p-3 rounded border border-yellow-600/30 space-y-1">
+                                        <div className="text-yellow-500 font-bold border-b border-yellow-600/30 mb-1 pb-1">TROFEO</div>
+                                        <p>BONUS ATTIVO: <span className="text-white animate-pulse">x{trophyLuckMult.toFixed(2)}</span></p>
+                                        <p className="text-[8px] text-neutral-500">MOLTIPLICA TUTTA LA FORTUNA</p>
+                                    </div>
+
                                 </div>
                             )}
                         </div>
 
-                        {/* Top Right Buttons */}
+                        {/* ... Top Right Buttons ... */}
                         <div className="flex flex-wrap justify-end gap-2 pointer-events-auto ml-auto">
+                            {/* (Buttons remain unchanged) */}
                             <button onClick={toggleMute} className="border border-neutral-700 hover:border-white hover:text-white px-3 py-2 transition-all uppercase bg-black/50 backdrop-blur min-w-[40px]">
                                 {isMuted ? '🔇' : '🔊'}
                             </button>
@@ -673,6 +795,7 @@ export default function App() {
                         </div>
                     </div>
 
+                    {/* ... (Main Screen Content) ... */}
                     <div className="z-10 w-full max-w-4xl px-6 flex flex-col items-center justify-center space-y-8 mt-8">
 
                         <div className="w-full flex justify-center">
@@ -764,7 +887,7 @@ export default function App() {
 
                     <div className="absolute bottom-0 w-full p-6 flex justify-between items-end z-20 pointer-events-none">
                         <div className="flex gap-4 items-center pointer-events-auto">
-                            <div className="text-neutral-800 text-xs font-mono uppercase tracking-widest">v2.7.0</div>
+                            <div className="text-neutral-800 text-xs font-mono uppercase tracking-widest">v2.9.5</div>
                             <button onClick={() => setIsChangelogOpen(true)} className="text-neutral-700 hover:text-white text-xs font-mono underline">CHANGELOG</button>
                         </div>
                         <button onClick={() => { audioService.playClick(); setIsAdminOpen(true); }} className="pointer-events-auto text-neutral-800 hover:text-neutral-500 text-xs font-mono uppercase transition-colors">
@@ -775,8 +898,8 @@ export default function App() {
                 </div>
                 {/* RIGHT: Activity Panel */}
                 <div className="border-t lg:border-t-0 lg:border-l border-surface-highlight min-h-[300px] lg:min-h-screen relative z-30 flex flex-col">
-                    {/* Panel Switcher */}
-                    <div className="flex border-b border-surface-highlight bg-background">
+                    {/* ... (Right Panel content is unchanged) ... */}
+                    <div className="flex border-b border-surface-highlight bg-background overflow-x-auto">
                         <button
                             onClick={() => setActiveRightPanel('MINING')}
                             className={`flex-1 py-3 text-[10px] font-mono font-bold tracking-widest transition-colors ${activeRightPanel === 'MINING' ? 'bg-surface-highlight text-text' : 'text-text-dim hover:bg-surface'}`}
@@ -794,6 +917,12 @@ export default function App() {
                             className={`flex-1 py-3 text-[10px] font-mono font-bold tracking-widest transition-colors ${activeRightPanel === 'HARVESTING' ? 'bg-green-950/50 text-green-400' : 'text-text-dim hover:bg-surface'}`}
                         >
                             HARVESTING
+                        </button>
+                        <button
+                            onClick={() => setActiveRightPanel('DREAMING')}
+                            className={`flex-1 py-3 text-[10px] font-mono font-bold tracking-widest transition-colors ${activeRightPanel === 'DREAMING' ? 'bg-purple-950/50 text-purple-400' : 'text-text-dim hover:bg-surface'}`}
+                        >
+                            DREAMING
                         </button>
                     </div>
 
@@ -817,7 +946,7 @@ export default function App() {
                                 onToggleAuto={() => { audioService.playClick(); fishingGame.toggleAuto(); }}
                                 onOpenInventory={() => { audioService.playClick(); setIsFishInventoryOpen(true); }}
                             />
-                        ) : (
+                        ) : activeRightPanel === 'HARVESTING' ? (
                             <HarvestingPanel
                                 onHarvest={harvestingGame.performAction}
                                 lastBatch={harvestingGame.lastBatch}
@@ -825,6 +954,24 @@ export default function App() {
                                 isAutoHarvesting={harvestingGame.isAuto}
                                 onToggleAuto={() => { audioService.playClick(); harvestingGame.toggleAuto(); }}
                                 onOpenInventory={() => { audioService.playClick(); setIsPlantInventoryOpen(true); }}
+                            />
+                        ) : (
+                            <DreamingPanel
+                                isDreaming={dreamingGame.isDreaming}
+                                stability={dreamingGame.stability}
+                                depth={dreamingGame.depth}
+                                lastDream={dreamingGame.lastDream}
+                                isCrashed={dreamingGame.isCrashed}
+                                isAuto={dreamingGame.isAutoDreaming}
+                                onEnter={() => dreamingGame.enterDream()}
+                                onDelve={() => {
+                                    // APPLICAZIONE BONUS TROFEO A DREAMING DELVE
+                                    const currentLuck = (1 + (stats.luckLevel || 0) * 0.2) * luckMultiplier * trophyLuckMult;
+                                    dreamingGame.delveDeeper(currentLuck, dreamBonuses.bonusStabilityRegen || 0);
+                                }}
+                                onWake={() => dreamingGame.wakeUp()}
+                                onToggleAuto={() => dreamingGame.toggleAutoDream()}
+                                onOpenInventory={() => setIsDreamInventoryOpen(true)}
                             />
                         )}
                     </div>
@@ -894,6 +1041,13 @@ export default function App() {
                 }}
             />
 
+            <DreamInventory
+                items={dreamingGame.inventory}
+                isOpen={isDreamInventoryOpen}
+                onClose={() => setIsDreamInventoryOpen(false)}
+                onSell={handleSellDreams}
+            />
+
             <CraftingPanel
                 isOpen={isCraftingOpen}
                 onClose={() => setIsCraftingOpen(false)}
@@ -901,6 +1055,7 @@ export default function App() {
                 oreInventory={miningGame.inventory}
                 fishInventory={fishingGame.inventory}
                 plantInventory={harvestingGame.inventory}
+                dreamInventory={dreamingGame.inventory}
                 onCraft={handleCraftItem}
                 onEquip={handleEquipItem}
                 onUnequip={handleUnequipItem}
@@ -921,6 +1076,7 @@ export default function App() {
                 oreInventory={miningGame.inventory}
                 fishInventory={fishingGame.inventory}
                 plantInventory={harvestingGame.inventory}
+                dreamInventory={dreamingGame.inventory}
                 onSelectItem={handleIndexSelectItem}
             />
             <Achievements isOpen={isAchievementsOpen} onClose={() => setIsAchievementsOpen(false)} stats={stats} onEquipTitle={(title) => setStats(prev => ({ ...prev, equippedTitle: title }))} />

@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { RarityId } from '../types';
 
@@ -39,6 +38,7 @@ export function useSubGame<T extends { id: number; probability: number }, InvIte
         localStorage.setItem(config.storageKey, JSON.stringify(inventory));
     }, [inventory, config.storageKey]);
 
+    // Questa funzione viene ricreata ad ogni render perché 'config' cambia (es. luck cambia con i trofei)
     const performAction = useCallback(() => {
         config.playSound();
         const count = config.multi;
@@ -52,7 +52,7 @@ export function useSubGame<T extends { id: number; probability: number }, InvIte
         }
 
         setLastBatch(batch);
-        
+
         setInventory(prev => {
             const next = [...prev];
             updates.forEach((qty, id) => {
@@ -66,31 +66,61 @@ export function useSubGame<T extends { id: number; probability: number }, InvIte
         // Stats & Audio
         let bestItem = batch[0];
         batch.forEach(i => { if (i.probability > bestItem.probability) bestItem = i; });
-        
+
         const foundGacha = Math.random() < 0.0025;
         callbacks.onUpdate(count, bestItem.id, foundGacha ? 1 : 0);
 
         if (foundGacha) callbacks.playCoinWin(3);
 
         if (bestItem.id >= config.thresholds.boom) {
-             const estRarity = Math.min(15, Math.floor(bestItem.id / config.thresholds.boomDivisor));
-             callbacks.playBoom(estRarity as RarityId);
+            const estRarity = Math.min(15, Math.floor(bestItem.id / config.thresholds.boomDivisor));
+            callbacks.playBoom(estRarity as RarityId);
         } else if (bestItem.id >= config.thresholds.rare) {
-             callbacks.playRare(RarityId.RARE);
+            callbacks.playRare(RarityId.RARE);
         }
 
     }, [config.luck, config.multi, config.dropFn, callbacks, config.playSound, config.thresholds]);
 
-    // Auto Loop
+    // --- FIX CRUCIALE PER AUTOSPIN ---
+    // Usiamo un ref per tenere traccia dell'ultima versione di performAction.
+    // Questo permette all'intervallo di eseguire sempre la logica più recente (con la fortuna aggiornata)
+    // SENZA dover essere cancellato e ricreato ogni volta che cambia una dipendenza.
+    const savedCallback = useRef(performAction);
+
+    // Aggiorna il ref ogni volta che performAction cambia
+    useEffect(() => {
+        savedCallback.current = performAction;
+    }, [performAction]);
+
+    // Setup dell'intervallo
     useEffect(() => {
         if (isAuto) {
-            timerRef.current = window.setInterval(performAction, config.speed);
-        } else {
+            // Se c'è già un timer, non ne creiamo un altro, a meno che la velocità non sia cambiata
             if (timerRef.current) clearInterval(timerRef.current);
-            timerRef.current = null;
+
+            timerRef.current = window.setInterval(() => {
+                // Chiamiamo la funzione salvata nel ref
+                if (savedCallback.current) savedCallback.current();
+            }, config.speed);
+        } else {
+            // Pulizia se l'auto viene disattivato
+            if (timerRef.current) {
+                clearInterval(timerRef.current);
+                timerRef.current = null;
+            }
         }
-        return () => { if (timerRef.current) clearInterval(timerRef.current); };
-    }, [isAuto, config.speed, performAction]);
+
+        // Cleanup al smontaggio o cambio velocità
+        return () => {
+            if (timerRef.current) {
+                clearInterval(timerRef.current);
+                timerRef.current = null; // Importante resettare il ref
+            }
+        };
+
+        // IMPORTANTE: Dipendiamo SOLO da isAuto e config.speed.
+        // performAction NON è una dipendenza qui, quindi l'intervallo non si resetta quando cambia la fortuna.
+    }, [isAuto, config.speed]);
 
     return {
         inventory,

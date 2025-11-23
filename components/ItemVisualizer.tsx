@@ -329,6 +329,48 @@ const AntimatterModel = () => {
   );
 };
 
+const AngelFeatherModel = () => {
+  return (
+    <Float speed={1} rotationIntensity={1} floatIntensity={2} floatingRange={[0, 0.5]}>
+      <group rotation={[0, 0, Math.PI / 4]}>
+        {/* Quill - Central Shaft */}
+        <mesh position={[0, 0, 0]}>
+          <cylinderGeometry args={[0.02, 0.05, 4.5, 8]} />
+          <meshStandardMaterial color="#e2e8f0" roughness={0.3} />
+        </mesh>
+
+        {/* Vane - The feathery part */}
+        <mesh position={[0, 0.5, 0]} scale={[1, 1, 0.1]}>
+          <coneGeometry args={[1.2, 3.5, 32]} />
+          <MeshDistortMaterial
+            color="#ffffff"
+            emissive="#ffffff"
+            emissiveIntensity={0.5}
+            roughness={0.1}
+            metalness={0.1}
+            distort={0.2}
+            speed={1}
+            side={THREE.DoubleSide}
+          />
+        </mesh>
+
+        {/* Inner Glow Core */}
+        <mesh position={[0, 0.5, 0]} scale={[0.5, 0.8, 0.2]}>
+          <coneGeometry args={[1, 3, 16]} />
+          <meshBasicMaterial color="#fefce8" transparent opacity={0.5} />
+        </mesh>
+      </group>
+
+      {/* Falling particles / Holy dust */}
+      <Sparkles count={60} scale={4} size={3} speed={0.2} opacity={0.6} color="#fefce8" />
+      <Sparkles count={20} scale={3} size={5} speed={0.5} opacity={1} color="#fbbf24" noise={0.5} />
+
+      {/* Holy Light */}
+      <pointLight color="#ffffff" intensity={3} distance={6} decay={2} />
+    </Float>
+  );
+};
+
 const StandardOreModel = ({ color, intensity }: { color: string, intensity: number }) => {
   return (
     <Float speed={2} rotationIntensity={1} floatIntensity={0.5}>
@@ -360,6 +402,7 @@ const SceneContent: React.FC<{ item: ItemData; color: string; intensity: number 
   const isFrozenTime = item.text === "Frozen Time";
   const isSolarPlasma = item.text === "Solar Plasma";
   const isAntimatter = item.text === "Antimatter";
+  const isAngelFeather = item.text === "Angel Feather";
 
   return (
     <>
@@ -381,6 +424,8 @@ const SceneContent: React.FC<{ item: ItemData; color: string; intensity: number 
         <SolarPlasmaModel />
       ) : isAntimatter ? (
         <AntimatterModel />
+      ) : isAngelFeather ? (
+        <AngelFeatherModel />
       ) : (
         <StandardOreModel color={color} intensity={intensity} />
       )}
@@ -439,7 +484,14 @@ export const ItemVisualizer: React.FC<Props> = ({ item, onClose }) => {
 
   // Item Data
   const oreData = useMemo(() => ORES.find(o => o.name === item.text), [item.text]);
-  const isSpecial = item.text === "Black Hole Core" || item.text === "Liquid Luck" || item.text === "Sound Shard" || item.text === "Hypercube Fragment" || item.text === "Frozen Time" || item.text === "Solar Plasma" || item.text === "Antimatter";
+  const isSpecial = item.text === "Black Hole Core" ||
+    item.text === "Liquid Luck" ||
+    item.text === "Sound Shard" ||
+    item.text === "Hypercube Fragment" ||
+    item.text === "Frozen Time" ||
+    item.text === "Solar Plasma" ||
+    item.text === "Antimatter" ||
+    item.text === "Angel Feather";
   const isOre = !!oreData;
 
   // Determine Visual Properties

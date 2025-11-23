@@ -1,4 +1,4 @@
-import { CraftableItem, CraftingCategory } from './types';
+import { CraftableItem } from './types';
 
 // Helper to generate items
 const generateItems = (): CraftableItem[] => {
@@ -196,6 +196,61 @@ const generateItems = (): CraftableItem[] => {
                 cost: Math.floor(1500 * Math.pow(2.5, i)),
                 materials: [
                     { type: 'PLANT', id: Math.max(15, tier * 9), count: 60 * tier }
+                ]
+            }
+        });
+    });
+
+    // --- DREAMING ITEMS (Totems) [BOOST] - Increases Base Stability ---
+    const totemNames = [
+        "Spinning Top", "Loaded Die", "Weighted Chess Piece", "Gold Coin", "Iron Poker",
+        "Silver Mirror", "Crystal Orb", "Obsidian Shard", "Runed Stone", "Ancestral Idol",
+        "Void Anchor", "Reality Tether", "Soul Gem", "Chronos Watch", "The Constant"
+    ];
+
+    totemNames.forEach((name, i) => {
+        const tier = i + 1;
+        items.push({
+            id: `dream_${tier}`,
+            name: name,
+            description: `Increases Base Stability by +${tier * 10}.`,
+            tier,
+            category: 'DREAMING',
+            type: 'BOOST',
+            bonuses: { stability: tier * 10 },
+            recipe: {
+                cost: Math.floor(1000 * Math.pow(1.7, i)),
+                materials: [
+                    { type: 'DREAM', id: Math.max(1, Math.floor(tier * 2)), count: 5 + tier },
+                    { type: 'ORE', id: Math.max(10, tier * 5), count: 20 + tier * 5 }
+                ]
+            }
+        });
+    });
+
+    // --- DREAMING ITEMS (Lucidity) [MULTI] - Increases Regen Chance ---
+    // Note: Using 'MULTI' slot for Regen/Lucidity upgrades to fit the 2-slot system
+    const lucidNames = [
+        "Herbal Tea", "Dream Journal", "Lavender Scent", "Meditation Mat", "Lucid Mask",
+        "Theta Wave Gen", "Synapse Booster", "Pineal Extract", "Third Eye Open", "Astral Projection",
+        "Reality Check", "Memory Palace", "Subconscious Key", "Mind Fortress", "Omniscience"
+    ];
+
+    lucidNames.forEach((name, i) => {
+        const tier = i + 1;
+        items.push({
+            id: `dream_multi_${tier}`,
+            name: name,
+            description: `+${tier * 2}% Chance to regain Stability on roll.`,
+            tier,
+            category: 'DREAMING',
+            type: 'MULTI',
+            bonuses: { stabilityRegen: tier * 0.02 },
+            recipe: {
+                cost: Math.floor(2500 * Math.pow(2.2, i)),
+                materials: [
+                    { type: 'DREAM', id: Math.max(5, tier * 4), count: 10 * tier },
+                    { type: 'PLANT', id: Math.max(10, tier * 6), count: 20 * tier }
                 ]
             }
         });

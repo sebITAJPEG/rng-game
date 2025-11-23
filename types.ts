@@ -134,6 +134,26 @@ export interface PlantInventoryItem {
   locked?: boolean;
 }
 
+// --- DREAMING TYPES ---
+
+export interface Dream {
+  id: number;
+  name: string;
+  description: string;
+  probability: number; // 1 in X (Base)
+  stabilityDrain: number; // How much stability this dream costs
+  color: string;
+  glowColor: string;
+  tierName: string; // "Lucid", "Nightmare", etc.
+}
+
+export interface DreamInventoryItem {
+  id: number;
+  count: number;
+  discoveredAt: number;
+  locked?: boolean;
+}
+
 export interface Achievement {
   id: string;
   title: string; // The reward title
@@ -143,11 +163,11 @@ export interface Achievement {
 
 // --- CRAFTING TYPES ---
 
-export type CraftingCategory = 'GENERAL' | 'MINING' | 'FISHING' | 'HARVESTING';
+export type CraftingCategory = 'GENERAL' | 'MINING' | 'FISHING' | 'HARVESTING' | 'DREAMING';
 export type CraftingType = 'BOOST' | 'MULTI'; // New field to distinguish slot type
 
 export interface CraftingMaterial {
-  type: 'ORE' | 'FISH' | 'PLANT' | 'ITEM'; // ITEM represents main game drops if needed, currently simplified to resources
+  type: 'ORE' | 'FISH' | 'PLANT' | 'DREAM' | 'ITEM';
   id: number | string; // ID of the resource
   count: number;
 }
@@ -164,6 +184,10 @@ export interface CraftableItem {
     speed?: number; // ms reduction
     yield?: number; // deprecated/unused for now, using multi
     multi?: number; // Additive to multi-roll
+
+    // Dreaming Specific
+    stability?: number; // Additive to base stability
+    stabilityRegen?: number; // Chance to regen
   };
   recipe: {
     materials: CraftingMaterial[];
@@ -216,6 +240,13 @@ export interface GameStats {
   harvestingLuckLevel: number;
   harvestingMultiLevel: number;
 
+  // Dreaming Stats
+  totalDreamt: number;
+  bestDreamFound: number;
+
   // Gacha
   gachaCredits: number;
+
+  // --- NEW ---
+  ticTacToeWins: number;
 }
