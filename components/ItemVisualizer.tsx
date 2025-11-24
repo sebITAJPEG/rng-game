@@ -371,6 +371,98 @@ const AngelFeatherModel = () => {
   );
 };
 
+const LunarDustModel = () => {
+  const count = 1000;
+  const positions = useMemo(() => {
+    const pos = new Float32Array(count * 3);
+    for (let i = 0; i < count; i++) {
+      const r = 1.5 * Math.cbrt(Math.random());
+      const theta = Math.random() * 2 * Math.PI;
+      const phi = Math.acos(2 * Math.random() - 1);
+      pos[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+      pos[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+      pos[i * 3 + 2] = r * Math.cos(phi);
+    }
+    return pos;
+  }, []);
+
+  return (
+    <Float speed={1} rotationIntensity={0.5} floatIntensity={1}>
+      <points>
+        <bufferGeometry>
+          <bufferAttribute
+            attach="attributes-position"
+            count={count}
+            array={positions}
+            itemSize={3}
+          />
+        </bufferGeometry>
+        <pointsMaterial
+          size={0.03}
+          color="#e5e7eb"
+          transparent
+          opacity={0.6}
+          sizeAttenuation={true}
+        />
+      </points>
+      <Sparkles count={50} scale={3} size={2} speed={0.2} opacity={0.4} color="#ffffff" />
+      <pointLight color="#ffffff" intensity={2} distance={5} />
+    </Float>
+  );
+};
+
+const MartianSoilModel = () => {
+  const count = 1200;
+  const positions = useMemo(() => {
+    const pos = new Float32Array(count * 3);
+    for (let i = 0; i < count; i++) {
+      const x = (Math.random() - 0.5) * 3;
+      const y = (Math.random() - 0.5) * 3;
+      const z = (Math.random() - 0.5) * 3;
+      pos[i * 3] = x;
+      pos[i * 3 + 1] = y;
+      pos[i * 3 + 2] = z;
+    }
+    return pos;
+  }, []);
+
+  return (
+    <Float speed={2} rotationIntensity={1} floatIntensity={0.5}>
+      <points>
+        <bufferGeometry>
+          <bufferAttribute
+            attach="attributes-position"
+            count={count}
+            array={positions}
+            itemSize={3}
+          />
+        </bufferGeometry>
+        <pointsMaterial
+          size={0.04}
+          color="#c2410c"
+          transparent
+          opacity={0.8}
+          sizeAttenuation={true}
+        />
+      </points>
+      <Sparkles count={30} scale={3} size={4} speed={0.5} opacity={0.5} color="#ea580c" />
+      <pointLight color="#ea580c" intensity={3} distance={6} />
+    </Float>
+  );
+};
+
+const StardustModel = () => {
+  return (
+    <Float speed={1} rotationIntensity={2} floatIntensity={1}>
+      <Sparkles count={200} scale={4} size={6} speed={0.5} opacity={1} color="#fbbf24" />
+      <Sparkles count={100} scale={3} size={4} speed={0.8} opacity={0.7} color="#60a5fa" />
+      <Sparkles count={50} scale={5} size={8} speed={0.2} opacity={0.5} color="#f472b6" />
+      <pointLight color="#fbbf24" intensity={4} distance={8} />
+      <pointLight color="#60a5fa" intensity={4} distance={8} position={[2, 2, 2]} />
+    </Float>
+  );
+};
+
 const StandardOreModel = ({ color, intensity }: { color: string, intensity: number }) => {
   return (
     <Float speed={2} rotationIntensity={1} floatIntensity={0.5}>
@@ -403,6 +495,9 @@ const SceneContent: React.FC<{ item: ItemData; color: string; intensity: number 
   const isSolarPlasma = item.text === "Solar Plasma";
   const isAntimatter = item.text === "Antimatter";
   const isAngelFeather = item.text === "Angel Feather";
+  const isLunarDust = item.text === "Lunar Dust";
+  const isMartianSoil = item.text === "Martian Soil";
+  const isStardust = item.text === "Stardust";
 
   return (
     <>
@@ -426,6 +521,12 @@ const SceneContent: React.FC<{ item: ItemData; color: string; intensity: number 
         <AntimatterModel />
       ) : isAngelFeather ? (
         <AngelFeatherModel />
+      ) : isLunarDust ? (
+        <LunarDustModel />
+      ) : isMartianSoil ? (
+        <MartianSoilModel />
+      ) : isStardust ? (
+        <StardustModel />
       ) : (
         <StandardOreModel color={color} intensity={intensity} />
       )}
@@ -491,7 +592,10 @@ export const ItemVisualizer: React.FC<Props> = ({ item, onClose }) => {
     item.text === "Frozen Time" ||
     item.text === "Solar Plasma" ||
     item.text === "Antimatter" ||
-    item.text === "Angel Feather";
+    item.text === "Angel Feather" ||
+    item.text === "Lunar Dust" ||
+    item.text === "Martian Soil" ||
+    item.text === "Stardust";
   const isOre = !!oreData;
 
   // Determine Visual Properties
