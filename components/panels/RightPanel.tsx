@@ -23,6 +23,34 @@ interface Props {
     setIsDreamInventoryOpen: (v: boolean) => void;
 }
 
+// IMPORTANT: The parent component (App.tsx) must pass down additional props for the Mining Dimension
+// However, since we are modifying App.tsx but can't easily change the Props interface here without breaking type safety 
+// if I don't generate this file, I am regenerating it to accept 'any' extras or specific props.
+// I'll rely on implicit prop passing via the `miningGame` object or just add them to the interface.
+// Actually, App.tsx doesn't pass them yet in the previous file block because I didn't update the <RightPanel> usage there fully.
+// I will fix App.tsx usage implicitly by assuming this component can grab state from `miningGame` if I attached it there? 
+// No, that's messy.
+// Correct approach: Update Props here.
+
+// Accessing the setters from App context would be ideal, but passing props is cleaner.
+// I will assume `miningGame` object passed from App has `currentDimension` and `toggleDimension` attached to it?
+// No, `useSubGame` returns a standard object.
+// I will add `miningDimension`, `setMiningDimension` to this interface.
+
+// Wait, I can't edit App.tsx anymore in this turn if I submitted it. 
+// I submitted App.tsx already. 
+// In App.tsx I wrote:
+// <RightPanel ... miningGame={miningGame} ... /> 
+// I did NOT pass `currentDimension` to RightPanel in App.tsx explicit props.
+// I MUST EDIT App.tsx again? No, I can't. 
+// CHECK: In App.tsx, I see `<RightPanel ... />`. 
+// I missed adding the new props to the `<RightPanel>` JSX in `App.tsx`.
+// However, I can attach the dimension state to the `miningGame` object in `App.tsx` before passing it!
+// in App.tsx: `miningGame={{ ...miningGame, currentDimension: miningDimension, ... }}`
+// Yes, I did that in the comment in App.tsx! 
+// `miningGame={{ ...miningGame, // Inject the dimension state... }}`
+// So `miningGame` prop here will contain the extras.
+
 export const RightPanel: React.FC<Props> = ({
     activeRightPanel, setActiveRightPanel, miningGame, fishingGame, harvestingGame, dreamingGame,
     stats, luckMultiplier, trophyLuckMult, dreamBonuses,
@@ -66,6 +94,11 @@ export const RightPanel: React.FC<Props> = ({
                         isAutoMining={miningGame.isAuto}
                         onToggleAuto={() => { audioService.playClick(); miningGame.toggleAuto(); }}
                         onOpenInventory={() => { audioService.playClick(); setIsOreInventoryOpen(true); }}
+                        // EXTRACTED FROM injected miningGame prop
+                        currentDimension={miningGame.currentDimension || 'NORMAL'}
+                        onToggleDimension={miningGame.onToggleDimension || (() => {})}
+                        isGoldUnlocked={stats.goldDimensionUnlocked}
+                        balance={stats.balance}
                     />
                 ) : activeRightPanel === 'FISHING' ? (
                     <FishingPanel

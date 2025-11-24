@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { GameStats, Drop, InventoryItem, RarityId, ItemData, VariantId, OreInventoryItem, FishInventoryItem, PlantInventoryItem, CraftableItem } from './types';
-import { RARITY_TIERS, TRANSLATIONS, VARIANTS, ACHIEVEMENTS, SPEED_TIERS, ENTROPY_THRESHOLD, MINING_SPEEDS, ORES, FISHING_SPEEDS, FISH, HARVESTING_SPEEDS, PLANTS, DREAMS } from './constants';
+import { RARITY_TIERS, TRANSLATIONS, VARIANTS, ACHIEVEMENTS, SPEED_TIERS, ENTROPY_THRESHOLD, MINING_SPEEDS, ORES, GOLD_ORES, FISHING_SPEEDS, FISH, HARVESTING_SPEEDS, PLANTS, DREAMS } from './constants';
 import { generateDrop } from './services/rngService';
 import { mineOre } from './services/miningService';
 import { catchFish } from './services/fishingService';
@@ -25,6 +25,16 @@ export default function App() {
     const [currentDrops, setCurrentDrops] = useState<Drop[]>([]);
     const [showExtendedStats, setShowExtendedStats] = useState(false);
 
+    // New State for Mining Dimension
+    const [miningDimension, setMiningDimension] = useState<'NORMAL' | 'GOLD'>('NORMAL');
+
+    // New State for Admin Override Balance & Wins
+    const [overrideBalance, setOverrideBalance] = useState('');
+    const [overrideWins, setOverrideWins] = useState('');
+
+    // Volume State
+    const [volume, setVolume] = useState(0.4);
+
     const [stats, setStats] = useState<GameStats>(() => {
         const saved = localStorage.getItem('textbound_stats');
         if (saved) {
@@ -38,6 +48,7 @@ export default function App() {
             multiRollLevel: 1, speedLevel: 0, luckLevel: 0, entropy: 0, hasBurst: false,
             unlockedAchievements: [], equippedTitle: null, craftedItems: {}, equippedItems: {},
             totalMined: 0, bestOreMined: 0, miningSpeedLevel: 0, miningLuckLevel: 0, miningMultiLevel: 1,
+            goldDimensionUnlocked: false,
             totalFished: 0, bestFishCaught: 0, fishingSpeedLevel: 0, fishingLuckLevel: 0, fishingMultiLevel: 1,
             totalHarvested: 0, bestPlantHarvested: 0, harvestingSpeedLevel: 0, harvestingLuckLevel: 0, harvestingMultiLevel: 1,
             totalDreamt: 0, bestDreamFound: 0, gachaCredits: 0, ticTacToeWins: 0
@@ -53,7 +64,7 @@ export default function App() {
     const [isAutoSpinning, setIsAutoSpinning] = useState(false);
     const [activeRightPanel, setActiveRightPanel] = useState<'MINING' | 'FISHING' | 'HARVESTING' | 'DREAMING'>('MINING');
 
-    // Modal States managed in one object to pass easily
+    // Modal States
     const [modalsState, setModalsState] = useState({
         isInventoryOpen: false, isOreInventoryOpen: false, isFishInventoryOpen: false,
         isPlantInventoryOpen: false, isDreamInventoryOpen: false, isCraftingOpen: false,
@@ -89,6 +100,14 @@ export default function App() {
 
     const trophyLuckMult = getTrophyMultiplier(stats.ticTacToeWins || 0);
 
+    // Auto-Unlock Gold Dimension if rich enough
+    useEffect(() => {
+        if (stats.balance >= 1000000 && !stats.goldDimensionUnlocked) {
+            setStats(prev => ({ ...prev, goldDimensionUnlocked: true }));
+            audioService.playRaritySound(RarityId.DIVINE);
+        }
+    }, [stats.balance, stats.goldDimensionUnlocked]);
+
     useEffect(() => {
         const baseMineSpeed = MINING_SPEEDS[Math.min(stats.miningSpeedLevel || 0, MINING_SPEEDS.length - 1)] || 1000;
         const baseFishSpeed = FISHING_SPEEDS[Math.min(stats.fishingSpeedLevel || 0, FISHING_SPEEDS.length - 1)] || 1200;
@@ -103,10 +122,25 @@ export default function App() {
     }, [stats.speedLevel, stats.miningSpeedLevel, stats.fishingSpeedLevel, stats.harvestingSpeedLevel, stats.equippedItems]);
 
     const mineBonuses = getCraftingBonuses(stats.equippedItems, 'MINING');
+    
+    // WRAPPED mining function to inject the current dimension state
+    const handleMineOre = useCallback((luck: number) => {
+        return mineOre(luck, miningDimension);
+    }, [miningDimension]);
+
+    // SWITCH SOUND based on dimension
+    const playMineSound = useCallback(() => {
+        if (miningDimension === 'GOLD') {
+            audioService.playGoldMineSound();
+        } else {
+            audioService.playMineSound();
+        }
+    }, [miningDimension]);
+
     const miningGame = useSubGame({
         storageKey: 'textbound_ore_inventory',
-        dropFn: mineOre,
-        playSound: audioService.playMineSound.bind(audioService),
+        dropFn: handleMineOre,
+        playSound: playMineSound, // Use the wrapper that checks dimension
         speed: miningSpeed,
         luck: ((miningLuckMultiplier * (1 + (stats.miningLuckLevel * 0.5))) + mineBonuses.bonusLuck) * trophyLuckMult,
         multi: (stats.miningMultiLevel || 1) + mineBonuses.bonusMulti,
@@ -178,10 +212,10 @@ export default function App() {
         }
     }, [stats, inventory]);
 
-    const toggleMute = () => {
-        const newState = !isMuted;
-        setIsMuted(newState);
-        audioService.toggleMute(newState);
+    const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const val = parseFloat(e.target.value);
+        setVolume(val);
+        audioService.setVolume(val);
     };
 
     const getBestDrop = (drops: Drop[]) => {
@@ -189,7 +223,8 @@ export default function App() {
         return drops.reduce((prev, current) => (current.rarityId > prev.rarityId ? current : prev), drops[0]);
     };
 
-    // --- Handlers passed to children ---
+    // --- HANDLERS ---
+
     const toggleResourceLock = (type: 'ORES' | 'FISH' | 'PLANTS', id: number) => {
         if (type === 'ORES') miningGame.setInventory(prev => prev.map(i => i.id === id ? { ...i, locked: !i.locked } : i));
         else if (type === 'FISH') fishingGame.setInventory(prev => prev.map(i => i.id === id ? { ...i, locked: !i.locked } : i));
@@ -204,7 +239,13 @@ export default function App() {
         let defs: any[];
         let divisor: number;
 
-        if (type === 'ORES') { currentInv = miningGame.inventory; setInv = miningGame.setInventory; defs = ORES; divisor = 5; }
+        if (type === 'ORES') { 
+            currentInv = miningGame.inventory; 
+            setInv = miningGame.setInventory; 
+            // Combine both lists for price lookup
+            defs = [...ORES, ...GOLD_ORES]; 
+            divisor = 5; 
+        }
         else if (type === 'FISH') { currentInv = fishingGame.inventory; setInv = fishingGame.setInventory; defs = FISH; divisor = 4; }
         else { currentInv = harvestingGame.inventory; setInv = harvestingGame.setInventory; defs = PLANTS; divisor = 4.5; }
 
@@ -235,7 +276,17 @@ export default function App() {
     };
 
     const handleInspectResource = (item: { id: number; name: string; description: string }) => {
-        const rarityId = Math.min(Math.ceil(item.id / 10), 15) as RarityId;
+        // Heuristic for rarity based on ID
+        let rarityId = Math.min(Math.ceil(item.id / 10), 15) as RarityId;
+        // Adjust for gold ores (ids 1001+)
+        if (item.id > 1000) {
+            const goldTier = Math.ceil((item.id - 1000) / 10); // 1, 2, 3...
+            // Map gold tiers roughly to high rarity
+            // Gold Tier 1 -> Rare (3)
+            // Gold Tier 2 -> Legendary (5)
+            rarityId = Math.min(Math.max(1, goldTier * 2 + 1), 15) as RarityId;
+        }
+
         audioService.playClick();
         setIsAutoSpinning(false);
         setInspectedItem({ text: item.name, description: item.description, rarityId: rarityId || RarityId.COMMON, variantId: VariantId.NONE });
@@ -244,7 +295,6 @@ export default function App() {
 
     const handleCraftItem = (item: CraftableItem) => {
         if (stats.balance < item.recipe.cost) return;
-        // Check requirements...
         const missingMaterial = item.recipe.materials.find(mat => {
             if (mat.type === 'ORE') return (miningGame.inventory.find(i => i.id === mat.id)?.count || 0) < mat.count;
             if (mat.type === 'FISH') return (fishingGame.inventory.find(i => i.id === mat.id)?.count || 0) < mat.count;
@@ -254,7 +304,7 @@ export default function App() {
         });
         if (missingMaterial) return;
         setStats(prev => ({ ...prev, balance: prev.balance - item.recipe.cost, craftedItems: { ...prev.craftedItems, [item.id]: true } }));
-        // Deduct items...
+        
         item.recipe.materials.forEach(mat => {
             const deduct = (inv: any[], setInv: any) => setInv((prev: any[]) => prev.map(i => i.id === mat.id ? { ...i, count: i.count - mat.count } : i).filter(i => i.count > 0));
             if (mat.type === 'ORE') deduct(miningGame.inventory, miningGame.setInventory);
@@ -324,7 +374,7 @@ export default function App() {
         setCurrentDrops(generatedDrops);
         batchUpdateStatsAndInventory(generatedDrops, rollsToPerform, currentEntropy);
         audioService.playBoom(bestDrop.rarityId);
-    }, [stats.totalRolls, stats.multiRollLevel, stats.entropy, luckMultiplier, stats.luckLevel, stats.equippedItems, trophyLuckMult]);
+    }, [stats.totalRolls, stats.multiRollLevel, stats.entropy, luckMultiplier, stats.luckLevel, stats.equippedItems, trophyLuckMult, autoStopRarity]);
 
     const savedHandleRoll = useRef(handleRoll);
     useEffect(() => { savedHandleRoll.current = handleRoll; }, [handleRoll]);
@@ -357,6 +407,22 @@ export default function App() {
     const handleTicTacToeWin = () => { setStats(prev => ({ ...prev, ticTacToeWins: (prev.ticTacToeWins || 0) + 1 })); };
     const handleLogSliderChange = (e: React.ChangeEvent<HTMLInputElement>) => { setLuckMultiplier(Math.pow(10, parseFloat(e.target.value))); };
     const getLogValue = (luck: number) => Math.log10(Math.max(1, luck));
+
+    const handleSetBalance = () => {
+        const val = parseInt(overrideBalance);
+        if (!isNaN(val)) {
+            setStats(prev => ({ ...prev, balance: val }));
+            audioService.playCoinWin(3);
+        }
+    };
+    
+    const handleSetWins = () => {
+        const val = parseInt(overrideWins);
+        if (!isNaN(val)) {
+            setStats(prev => ({ ...prev, ticTacToeWins: val }));
+            audioService.playRaritySound(RarityId.LEGENDARY);
+        }
+    };
 
     const activeRarityVFX = inspectedItem ? inspectedItem.rarityId : getBestDrop(currentDrops)?.rarityId;
     const currentGlobalLuck = (1 + (stats.luckLevel * 0.2) + getCraftingBonuses(stats.equippedItems, 'GENERAL').bonusLuck) * luckMultiplier * trophyLuckMult;
@@ -416,7 +482,18 @@ export default function App() {
 
                         {/* Top Right Buttons */}
                         <div className="flex flex-wrap justify-end gap-2 pointer-events-auto ml-auto">
-                            <button onClick={toggleMute} className="border border-neutral-700 hover:border-white hover:text-white px-3 py-2 transition-all uppercase bg-black/50 backdrop-blur min-w-[40px]">{isMuted ? '🔇' : '🔊'}</button>
+                            <div className="flex items-center gap-2 border border-neutral-700 bg-black/50 backdrop-blur px-2 py-1 rounded min-w-[120px]">
+                                <span className="text-xs text-neutral-400 font-mono">{volume > 0 ? '🔊' : '🔇'}</span>
+                                <input 
+                                    type="range" 
+                                    min="0" 
+                                    max="1" 
+                                    step="0.1" 
+                                    value={volume} 
+                                    onChange={handleVolumeChange}
+                                    className="w-20 h-1 bg-neutral-600 rounded-lg appearance-none cursor-pointer accent-white"
+                                />
+                            </div>
                             <button onClick={() => { audioService.playClick(); setModalsState(p => ({ ...p, isGachaOpen: true })); }} className="border border-purple-700 text-purple-400 hover:bg-purple-900/30 px-4 py-2 transition-all uppercase bg-black/50 backdrop-blur">GACHA</button>
                             <button onClick={() => { audioService.playClick(); setModalsState(p => ({ ...p, isCraftingOpen: true })); }} className="border border-green-700 text-green-500 hover:bg-green-900/30 px-4 py-2 transition-all uppercase bg-black/50 backdrop-blur">CRAFT</button>
                             <button onClick={() => { audioService.playClick(); setModalsState(p => ({ ...p, isCoinTossOpen: true })); }} className="border border-yellow-700 text-yellow-500 hover:bg-yellow-900/30 px-4 py-2 transition-all uppercase bg-black/50 backdrop-blur animate-pulse">FLIP</button>
@@ -442,7 +519,7 @@ export default function App() {
                     {/* Footer */}
                     <div className="absolute bottom-0 w-full p-6 flex justify-between items-end z-20 pointer-events-none">
                         <div className="flex gap-4 items-center pointer-events-auto">
-                            <div className="text-neutral-800 text-xs font-mono uppercase tracking-widest">v3.0.0 Refactored</div>
+                            <div className="text-neutral-800 text-xs font-mono uppercase tracking-widest">v3.1.0 GOLD</div>
                             <button onClick={() => setModalsState(p => ({ ...p, isChangelogOpen: true }))} className="text-neutral-700 hover:text-white text-xs font-mono underline">CHANGELOG</button>
                         </div>
                         <button onClick={() => { audioService.playClick(); setModalsState(p => ({ ...p, isAdminOpen: true })); }} className="pointer-events-auto text-neutral-800 hover:text-neutral-500 text-xs font-mono uppercase transition-colors">[ {T.UI.SYSTEM_CONFIG} ]</button>
@@ -453,7 +530,11 @@ export default function App() {
                 <RightPanel
                     activeRightPanel={activeRightPanel}
                     setActiveRightPanel={setActiveRightPanel}
-                    miningGame={miningGame}
+                    miningGame={{
+                        ...miningGame, 
+                        currentDimension: miningDimension, 
+                        onToggleDimension: () => setMiningDimension(d => d === 'NORMAL' ? 'GOLD' : 'NORMAL')
+                    }}
                     fishingGame={fishingGame}
                     harvestingGame={harvestingGame}
                     dreamingGame={dreamingGame}
@@ -484,7 +565,7 @@ export default function App() {
                 }}
             />
 
-            {/* Admin Panel Modal (Kept in App for direct access to debug states) */}
+            {/* Admin Panel Modal */}
             {modalsState.isAdminOpen && (
                 <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 backdrop-blur-sm">
                     <div className="w-full max-w-md bg-surface border border-border p-6 rounded-lg shadow-2xl relative max-h-[90vh] overflow-y-auto">
@@ -508,6 +589,36 @@ export default function App() {
                                 <input type="range" min="5" max="1000" step="5" value={autoSpinSpeed} onChange={(e) => setAutoSpinSpeed(Number(e.target.value))} className="w-full h-2 bg-neutral-800 rounded-lg appearance-none cursor-pointer accent-white" />
                                 <div className="flex justify-between text-sm font-mono text-neutral-400 mt-2"><label>LUCK (Log Scale)</label><span className="text-yellow-500 font-bold">{Math.round(luckMultiplier).toLocaleString()}x</span></div>
                                 <input type="range" min="0" max="12" step="0.1" value={getLogValue(luckMultiplier)} onChange={handleLogSliderChange} className="w-full h-2 bg-neutral-800 rounded-lg appearance-none cursor-pointer accent-yellow-500" />
+                                <div className="flex justify-between text-sm font-mono text-neutral-400 mt-2"><label>MINING DIMENSION</label><span className={miningDimension === 'GOLD' ? 'text-yellow-400' : 'text-gray-400'}>{miningDimension}</span></div>
+                                <button onClick={() => setMiningDimension(d => d === 'NORMAL' ? 'GOLD' : 'NORMAL')} className="w-full p-2 border border-yellow-900 text-yellow-600 text-xs">TOGGLE DIMENSION (DEBUG)</button>
+                                
+                                <div className="mt-4 pt-4 border-t border-neutral-800">
+                                    <div className="flex justify-between text-sm font-mono text-neutral-400 mb-2"><label>SET BALANCE</label></div>
+                                    <div className="flex gap-2">
+                                        <input 
+                                            type="number" 
+                                            placeholder="Amount" 
+                                            value={overrideBalance}
+                                            onChange={(e) => setOverrideBalance(e.target.value)}
+                                            className="flex-1 bg-neutral-900 border border-neutral-700 text-white text-xs p-2 rounded"
+                                        />
+                                        <button onClick={handleSetBalance} className="px-4 py-2 bg-green-900/30 text-green-400 border border-green-800 text-xs hover:bg-green-900">SET</button>
+                                    </div>
+                                </div>
+
+                                <div className="mt-4 pt-4 border-t border-neutral-800">
+                                    <div className="flex justify-between text-sm font-mono text-neutral-400 mb-2"><label>SET TTT WINS</label></div>
+                                    <div className="flex gap-2">
+                                        <input 
+                                            type="number" 
+                                            placeholder="Wins" 
+                                            value={overrideWins}
+                                            onChange={(e) => setOverrideWins(e.target.value)}
+                                            className="flex-1 bg-neutral-900 border border-neutral-700 text-white text-xs p-2 rounded"
+                                        />
+                                        <button onClick={handleSetWins} className="px-4 py-2 bg-blue-900/30 text-blue-400 border border-blue-800 text-xs hover:bg-blue-900">SET</button>
+                                    </div>
+                                </div>
                             </div>
                             <div className="pt-4 border-t border-neutral-800">
                                 <div className="grid grid-cols-3 gap-2">

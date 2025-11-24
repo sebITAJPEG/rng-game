@@ -3,8 +3,8 @@ import { RarityId } from '../types';
 class AudioService {
     private ctx: AudioContext | null = null;
     private masterGain: GainNode | null = null;
-    private isMuted: boolean = false;
-
+    private globalVolume: number = 0.4; // Default volume (40%)
+    
     // Signal specific nodes
     private signalOsc: OscillatorNode | null = null;
     private signalGain: GainNode | null = null;
@@ -17,7 +17,7 @@ class AudioService {
                 this.ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
                 this.masterGain = this.ctx.createGain();
                 this.masterGain.connect(this.ctx.destination);
-                this.masterGain.gain.value = 0.4;
+                this.masterGain.gain.value = this.globalVolume;
             } catch (e) {
                 console.error("AudioContext init failed", e);
             }
@@ -27,15 +27,22 @@ class AudioService {
         }
     }
 
-    public toggleMute(muted: boolean) {
-        this.isMuted = muted;
+    public setVolume(volume: number) {
+        // Clamp between 0 and 1
+        this.globalVolume = Math.max(0, Math.min(1, volume));
         if (this.masterGain) {
-            this.masterGain.gain.value = muted ? 0 : 0.4;
+            this.masterGain.gain.value = this.globalVolume;
         }
+        // Re-init context if it was closed/not started to apply volume immediately on interaction
+        if (volume > 0) this.init();
+    }
+
+    public getVolume(): number {
+        return this.globalVolume;
     }
 
     public playClick() {
-        if (this.isMuted) return;
+        if (this.globalVolume <= 0) return;
         this.init();
         if (!this.ctx || !this.masterGain) return;
 
@@ -58,7 +65,7 @@ class AudioService {
     }
 
     public playRollSound() {
-        if (this.isMuted) return;
+        if (this.globalVolume <= 0) return;
         this.init();
         if (!this.ctx || !this.masterGain) return;
 
@@ -83,7 +90,7 @@ class AudioService {
     }
 
     public playRaritySound(rarity: RarityId) {
-        if (this.isMuted) return;
+        if (this.globalVolume <= 0) return;
         this.init();
         if (!this.ctx || !this.masterGain) return;
 
@@ -116,7 +123,7 @@ class AudioService {
     }
 
     public playCutsceneAmbience(rarity: RarityId) {
-        if (this.isMuted) return;
+        if (this.globalVolume <= 0) return;
         this.init();
         if (!this.ctx || !this.masterGain) return;
 
@@ -145,7 +152,7 @@ class AudioService {
     }
 
     public playBoom(rarity: RarityId) {
-        if (this.isMuted) return;
+        if (this.globalVolume <= 0) return;
         this.init();
         if (!this.ctx || !this.masterGain) return;
 
@@ -200,7 +207,6 @@ class AudioService {
                 const laser = this.ctx.createOscillator();
                 const laserGain = this.ctx.createGain();
 
-                // Distortion node omitted for brevity but assumed present or simplified
                 laser.connect(laserGain);
                 laserGain.connect(this.masterGain);
 
@@ -220,7 +226,7 @@ class AudioService {
     }
 
     public playMineSound() {
-        if (this.isMuted) return;
+        if (this.globalVolume <= 0) return;
         this.init();
         if (!this.ctx || !this.masterGain) return;
 
@@ -242,8 +248,35 @@ class AudioService {
         } catch (e) { }
     }
 
+    public playGoldMineSound() {
+        if (this.globalVolume <= 0) return;
+        this.init();
+        if (!this.ctx || !this.masterGain) return;
+
+        try {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.connect(gain);
+            gain.connect(this.masterGain);
+
+            // Sine wave for a smooth, bell-like tone
+            osc.type = 'sine';
+            // Start at 600Hz and drop slightly for a "clink" effect
+            osc.frequency.setValueAtTime(600, this.ctx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(400, this.ctx.currentTime + 0.1);
+
+            // Very short envelope
+            gain.gain.setValueAtTime(0, this.ctx.currentTime);
+            gain.gain.linearRampToValueAtTime(0.05, this.ctx.currentTime + 0.01); 
+            gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.1);
+
+            osc.start(this.ctx.currentTime);
+            osc.stop(this.ctx.currentTime + 0.1);
+        } catch (e) { }
+    }
+
     public playFishSound() {
-        if (this.isMuted) return;
+        if (this.globalVolume <= 0) return;
         this.init();
         if (!this.ctx || !this.masterGain) return;
 
@@ -275,7 +308,7 @@ class AudioService {
     }
 
     public playHarvestSound() {
-        if (this.isMuted) return;
+        if (this.globalVolume <= 0) return;
         this.init();
         if (!this.ctx || !this.masterGain) return;
 
@@ -299,7 +332,7 @@ class AudioService {
     }
 
     public playCoinWin(intensity: number = 1) {
-        if (this.isMuted) return;
+        if (this.globalVolume <= 0) return;
         this.init();
         if (!this.ctx || !this.masterGain) return;
 
@@ -327,7 +360,7 @@ class AudioService {
     }
 
     public playCoinLose() {
-        if (this.isMuted) return;
+        if (this.globalVolume <= 0) return;
         this.init();
         if (!this.ctx || !this.masterGain) return;
 
@@ -350,7 +383,7 @@ class AudioService {
     }
 
     public playCoinFlip() {
-        if (this.isMuted) return;
+        if (this.globalVolume <= 0) return;
         this.init();
         if (!this.ctx || !this.masterGain) return;
 
@@ -374,7 +407,7 @@ class AudioService {
     }
 
     public playSlotStop() {
-        if (this.isMuted) return;
+        if (this.globalVolume <= 0) return;
         this.init();
         if (!this.ctx || !this.masterGain) return;
 
@@ -399,7 +432,7 @@ class AudioService {
     }
 
     public setSignalProximity(proximity: number) {
-        if (this.isMuted) return;
+        if (this.globalVolume <= 0) return;
         this.init();
         if (!this.ctx || !this.masterGain) return;
 
@@ -445,7 +478,7 @@ class AudioService {
     }
 
     public playSignalLock() {
-        if (this.isMuted) return;
+        if (this.globalVolume <= 0) return;
         this.init();
         if (!this.ctx || !this.masterGain) return;
 

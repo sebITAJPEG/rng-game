@@ -1564,3 +1564,45 @@ export const PHRASES = {
     }
 
 };
+
+export const GOLD_ORES: Ore[] = [
+    // --- TIER 1: GLITTERING (1-10) ---
+    { id: 1001, name: "Fool's Gold", description: "Looks valuable, but it's just shiny dirt.", probability: 100, color: "text-yellow-700", glowColor: "#a16207", tierName: "Gilded", dimension: 'GOLD' },
+    { id: 1002, name: "Gilded Pebble", description: "A rock dipped in cheap paint.", probability: 150, color: "text-yellow-600", glowColor: "#ca8a04", tierName: "Gilded", dimension: 'GOLD' },
+    { id: 1003, name: "Pyrite Dust", description: "Sparkles in the light.", probability: 200, color: "text-amber-600", glowColor: "#d97706", tierName: "Gilded", dimension: 'GOLD' },
+    { id: 1004, name: "Bronze Nugget", description: "A simple alloy.", probability: 250, color: "text-orange-800", glowColor: "#9a3412", tierName: "Gilded", dimension: 'GOLD' },
+    { id: 1005, name: "Brass Shard", description: "Used for instruments.", probability: 300, color: "text-yellow-500", glowColor: "#eab308", tierName: "Gilded", dimension: 'GOLD' },
+    { id: 1006, name: "Amber Fossil", description: "Trapped in gold resin.", probability: 350, color: "text-amber-500", glowColor: "#f59e0b", tierName: "Gilded", dimension: 'GOLD' },
+    { id: 1007, name: "Golden Sand", description: "Soft and warm.", probability: 400, color: "text-yellow-200", glowColor: "#fef08a", tierName: "Gilded", dimension: 'GOLD' },
+    { id: 1008, name: "Sunstone Chip", description: "Radiates faint heat.", probability: 450, color: "text-orange-400", glowColor: "#fb923c", tierName: "Gilded", dimension: 'GOLD' },
+    { id: 1009, name: "Citrine Geode", description: "Yellow crystals inside.", probability: 500, color: "text-yellow-300", glowColor: "#fde047", tierName: "Gilded", dimension: 'GOLD' },
+    { id: 1010, name: "Electrum Ore", description: "Natural alloy of gold and silver.", probability: 600, color: "text-yellow-100", glowColor: "#fef9c3", tierName: "Gilded", dimension: 'GOLD' },
+
+    // --- TIER 2: RADIANT (11-20) ---
+    { id: 1011, name: "Solid Gold Bar", description: "Standard currency.", probability: 1000, color: "text-yellow-400 font-bold", glowColor: "#facc15", tierName: "Radiant", dimension: 'GOLD' },
+    { id: 1012, name: "Royal Quartz", description: "Veined with pure gold.", probability: 2500, color: "text-purple-300", glowColor: "#d8b4fe", tierName: "Radiant", dimension: 'GOLD' },
+    { id: 1013, name: "Topaz Crystal", description: "Hard and brilliant.", probability: 5000, color: "text-blue-300", glowColor: "#93c5fd", tierName: "Radiant", dimension: 'GOLD' },
+    { id: 1014, name: "Golden Beryl", description: "Heliodor.", probability: 7500, color: "text-lime-300", glowColor: "#bef264", tierName: "Radiant", dimension: 'GOLD' },
+    { id: 1015, name: "Sunfire Opal", description: "Burning from within.", probability: 10000, color: "text-orange-500 animate-pulse", glowColor: "#f97316", tierName: "Radiant", dimension: 'GOLD' },
+    { id: 1016, name: "Imperial Jade", description: "Worth more than gold.", probability: 15000, color: "text-emerald-400", glowColor: "#34d399", tierName: "Radiant", dimension: 'GOLD' },
+    { id: 1017, name: "Pharaoh's Lapis", description: "Gold flecked blue stone.", probability: 20000, color: "text-blue-600", glowColor: "#2563eb", tierName: "Radiant", dimension: 'GOLD' },
+    { id: 1018, name: "Dragon's Hoard Coin", description: "Ancient and cursed.", probability: 30000, color: "text-red-500", glowColor: "#ef4444", tierName: "Radiant", dimension: 'GOLD' },
+    { id: 1019, name: "Crown Jewel", description: "Fit for a king.", probability: 40000, color: "text-fuchsia-400", glowColor: "#e879f9", tierName: "Radiant", dimension: 'GOLD' },
+    { id: 1020, name: "Aurora Gold", description: "Shimmers with colors.", probability: 50000, color: "text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 via-pink-500 to-purple-500", glowColor: "#f0abfc", tierName: "Radiant", dimension: 'GOLD' },
+
+    // --- TIER 3: DIVINE (21-25) ---
+    { id: 1021, name: "Midas Touch Stone", description: "Turns things to gold.", probability: 100000, color: "text-yellow-300 drop-shadow-[0_0_10px_gold]", glowColor: "#fcd34d", tierName: "Divine", dimension: 'GOLD' },
+    { id: 1022, name: "Celestial Gold", description: "Forged in a holy fire.", probability: 250000, color: "text-white drop-shadow-[0_0_10px_gold]", glowColor: "#ffffff", tierName: "Divine", dimension: 'GOLD' },
+    { id: 1023, name: "Seraphim Ingot", description: "Burning with eyes.", probability: 500000, color: "text-orange-200 animate-pulse", glowColor: "#fed7aa", tierName: "Divine", dimension: 'GOLD' },
+    { id: 1024, name: "Golden Fleece", description: "Wool of the gods.", probability: 750000, color: "text-amber-300", glowColor: "#fcd34d", tierName: "Divine", dimension: 'GOLD' },
+    { id: 1025, name: "Ambrosia Crystal", description: "Solidified nectar.", probability: 1000000, color: "text-pink-300", glowColor: "#f9a8d4", tierName: "Divine", dimension: 'GOLD' },
+
+    // --- TIER 4: ABSOLUTE (26-29) ---
+    { id: 1026, name: "Liquid Sunlight", description: "Pure star matter.", probability: 5000000, color: "text-yellow-100 animate-pulse", glowColor: "#fef9c3", tierName: "Absolute", dimension: 'GOLD' },
+    { id: 1027, name: "Philosopher's Gold", description: "The magnum opus.", probability: 10000000, color: "text-red-600 font-bold", glowColor: "#dc2626", tierName: "Absolute", dimension: 'GOLD' },
+    { id: 1028, name: "Time-Lost Treasure", description: "From a golden timeline.", probability: 25000000, color: "text-cyan-400", glowColor: "#22d3ee", tierName: "Absolute", dimension: 'GOLD' },
+    { id: 1029, name: "Universe Nugget", description: "A galaxy of gold.", probability: 50000000, color: "text-violet-500", glowColor: "#8b5cf6", tierName: "Absolute", dimension: 'GOLD' },
+
+    // --- TIER 5: THE GOLDEN ONE (30) ---
+    { id: 1030, name: "The Golden Ratio", description: "Perfect perfection.", probability: 100000000, color: "text-transparent bg-clip-text bg-gradient-to-b from-yellow-200 via-yellow-500 to-yellow-800 drop-shadow-[0_0_25px_gold] animate-pulse", glowColor: "#facc15", tierName: "THE GOLD", dimension: 'GOLD' }
+];

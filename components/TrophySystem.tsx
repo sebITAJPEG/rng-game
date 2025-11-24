@@ -8,7 +8,14 @@ export const TrophySystem: React.FC<Props> = ({ wins }) => {
 
     // Determina il colore, lo stile e il bonus del trofeo
     const getTrophyStyle = (count: number) => {
-        if (count >= 500) return { color: "text-transparent bg-clip-text bg-gradient-to-r from-red-500 via-green-500 to-blue-500 animate-pulse", label: "RAINBOW", bonus: "3.00x", shadow: "drop-shadow-[0_0_10px_rgba(255,255,255,0.8)]" };
+        // FIX: Sostituito bg-clip-text con colore solido per compatibilità SVG
+        if (count >= 500)
+            return {
+              color: "text-white animate-pulse",
+              label: "RAINBOW",
+              bonus: "3.00x",
+              shadow: "drop-shadow-[0_0_10px_rgb(255,0,0)] drop-shadow-[0_0_20px_rgb(0,255,0)] drop-shadow-[0_0_30px_rgb(0,0,255)]"
+            };
         if (count >= 300) return { color: "text-red-600", label: "RUBINO", bonus: "2.75x", shadow: "drop-shadow-[0_0_10px_rgba(220,38,38,0.6)]" };
         if (count >= 200) return { color: "text-emerald-500", label: "SMERALDO", bonus: "2.50x", shadow: "drop-shadow-[0_0_10px_rgba(16,185,129,0.6)]" };
         if (count >= 100) return { color: "text-cyan-300", label: "DIAMANTE", bonus: "2.25x", shadow: "drop-shadow-[0_0_10px_rgba(103,232,249,0.6)]" };

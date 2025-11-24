@@ -87,6 +87,7 @@ export interface Ore {
   color: string; // Text color class
   glowColor: string; // CSS color for shadows
   tierName: string;
+  dimension?: 'NORMAL' | 'GOLD'; // New field
 }
 
 export interface OreInventoryItem {
@@ -225,6 +226,7 @@ export interface GameStats {
   miningSpeedLevel: number; // New
   miningLuckLevel: number; // New
   miningMultiLevel: number; // New: How many ores mined at once
+  goldDimensionUnlocked: boolean; // New: Gold Dimension Unlock
 
   // Fishing Stats & Upgrades
   totalFished: number;

@@ -12,11 +12,12 @@ import {
   Icosahedron,
   Octahedron,
   Torus,
-  Sphere
+  Sphere,
+  Line
 } from '@react-three/drei';
 import { EffectComposer, Bloom, Noise, Vignette } from '@react-three/postprocessing';
 import { RarityId, ItemData, VariantId } from '@/types';
-import { RARITY_TIERS, VARIANTS, ORES } from '@/constants';
+import { RARITY_TIERS, VARIANTS, ORES, GOLD_ORES } from '@/constants'; // Added GOLD_ORES
 
 interface Props {
   item: ItemData & { rarityId: RarityId, variantId?: VariantId };
@@ -28,7 +29,6 @@ interface Props {
 const BlackHoleModel = () => {
   const particlesCount = 1500;
   const particlesRef = useRef<THREE.Points>(null);
-  // CORREZIONE: Cambiato da THREE.Mesh a THREE.Group perché sono attaccati a elementi <group>
   const ringRef1 = useRef<THREE.Group>(null);
   const ringRef2 = useRef<THREE.Group>(null);
 
@@ -125,6 +125,88 @@ const BlackHoleModel = () => {
     </group>
   );
 };
+
+const GoldenRatioModel = () => {
+  const groupRef = useRef<THREE.Group>(null);
+  const pointsCount = 500; // Number of points in the spiral
+
+  // Generate Golden Spiral Points
+  const spiralPoints = useMemo(() => {
+    const points: THREE.Vector3[] = [];
+    const phi = (1 + Math.sqrt(5)) / 2; // The Golden Ratio
+    const angleIncrement = Math.PI * 2 * phi;
+
+    for (let i = 0; i < pointsCount; i++) {
+      const t = i / pointsCount;
+      const angle = angleIncrement * i;
+      const radius = 4 * Math.sqrt(t); // Radius grows with square root for even distribution
+
+      // 3D Spiral: Adding Z variation
+      const x = radius * Math.cos(angle);
+      const y = (t - 0.5) * 4; // Spread along Y axis
+      const z = radius * Math.sin(angle);
+
+      points.push(new THREE.Vector3(x, y, z));
+    }
+    return points;
+  }, []);
+
+  useFrame((state) => {
+      if (groupRef.current) {
+          groupRef.current.rotation.y = state.clock.getElapsedTime() * 0.2;
+          groupRef.current.rotation.x = Math.sin(state.clock.getElapsedTime() * 0.1) * 0.2;
+      }
+  });
+
+  return (
+    <group ref={groupRef}>
+      {/* Central Golden Sphere */}
+      <Float speed={2} rotationIntensity={0.5} floatIntensity={0.5}>
+        <Icosahedron args={[0.8, 0]}>
+             <MeshTransmissionMaterial
+                backside
+                samples={16}
+                thickness={1}
+                roughness={0}
+                chromaticAberration={0.6}
+                anisotropy={0.5}
+                distortion={0.4}
+                distortionScale={0.5}
+                temporalDistortion={0.2}
+                color="#ffd700"
+                emissive="#ffbf00"
+                emissiveIntensity={1}
+             />
+        </Icosahedron>
+      </Float>
+
+      {/* The Spiral Line */}
+      <Line
+        points={spiralPoints}
+        color="#fbbf24"
+        lineWidth={2}
+        transparent
+        opacity={0.4}
+      />
+
+      {/* Particles along the spiral */}
+      {spiralPoints.map((point, i) => {
+          if (i % 5 !== 0) return null; // Reduce density
+          const scale = 0.05 + (i / pointsCount) * 0.1; 
+          return (
+              <mesh key={i} position={point}>
+                  <sphereGeometry args={[scale, 8, 8]} />
+                  <meshBasicMaterial color="#fde047" />
+              </mesh>
+          )
+      })}
+
+      {/* Ambient Glow */}
+      <pointLight color="#fbbf24" intensity={2} distance={6} />
+      <Sparkles count={50} scale={5} size={4} speed={0.5} opacity={0.5} color="#fef08a" />
+    </group>
+  );
+}
 
 const LiquidLuckModel = () => {
   return (
@@ -498,6 +580,7 @@ const SceneContent: React.FC<{ item: ItemData; color: string; intensity: number 
   const isLunarDust = item.text === "Lunar Dust";
   const isMartianSoil = item.text === "Martian Soil";
   const isStardust = item.text === "Stardust";
+  const isGoldenRatio = item.text === "The Golden Ratio"; // Check for Golden Ratio
 
   return (
     <>
@@ -527,6 +610,8 @@ const SceneContent: React.FC<{ item: ItemData; color: string; intensity: number 
         <MartianSoilModel />
       ) : isStardust ? (
         <StardustModel />
+      ) : isGoldenRatio ? (
+        <GoldenRatioModel />
       ) : (
         <StandardOreModel color={color} intensity={intensity} />
       )}
@@ -541,6 +626,11 @@ const SceneContent: React.FC<{ item: ItemData; color: string; intensity: number 
             <Vignette eskil={false} offset={0.1} darkness={1.1} />
           </EffectComposer>
         </>
+      ) : isGoldenRatio ? (
+         <EffectComposer>
+            <Bloom luminanceThreshold={0.5} mipmapBlur intensity={1.5} radius={0.8} />
+            <Noise opacity={0.05} />
+         </EffectComposer>
       ) : (
         <EffectComposer>
           <Bloom luminanceThreshold={1} mipmapBlur intensity={0.5} radius={0.4} />
@@ -583,8 +673,11 @@ export const ItemVisualizer: React.FC<Props> = ({ item, onClose }) => {
     y.set(0);
   };
 
-  // Item Data
-  const oreData = useMemo(() => ORES.find(o => o.name === item.text), [item.text]);
+  // Item Data - Now searching both lists
+  const oreData = useMemo(() => {
+      return ORES.find(o => o.name === item.text) || GOLD_ORES.find(o => o.name === item.text);
+  }, [item.text]);
+
   const isSpecial = item.text === "Black Hole Core" ||
     item.text === "Liquid Luck" ||
     item.text === "Sound Shard" ||
@@ -595,7 +688,9 @@ export const ItemVisualizer: React.FC<Props> = ({ item, onClose }) => {
     item.text === "Angel Feather" ||
     item.text === "Lunar Dust" ||
     item.text === "Martian Soil" ||
-    item.text === "Stardust";
+    item.text === "Stardust" ||
+    item.text === "The Golden Ratio"; // Added Golden Ratio
+
   const isOre = !!oreData;
 
   // Determine Visual Properties
