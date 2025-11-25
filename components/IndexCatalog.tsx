@@ -1,6 +1,6 @@
-import React, { useState, useMemo } from 'react';
-import { InventoryItem, RarityId, ItemData, OreInventoryItem, FishInventoryItem, PlantInventoryItem, DreamInventoryItem, MoonInventoryItem } from '../types';
-import { RARITY_TIERS, PHRASES, TRANSLATIONS, ORES, GOLD_ORES, FISH, PLANTS, DREAMS, MOON_ITEMS } from '../constants';
+import React, { useState, useMemo, useEffect } from 'react';
+import { InventoryItem, RarityId, ItemData, OreInventoryItem, FishInventoryItem, PlantInventoryItem, DreamInventoryItem, MoonInventoryItem, VariantId } from '../types';
+import { RARITY_TIERS, PHRASES, TRANSLATIONS, ORES, GOLD_ORES, FISH, PLANTS, DREAMS, MOON_ITEMS, VARIANTS } from '../constants';
 import { RarityBadge } from './RarityBadge';
 import { audioService } from '../services/audioService';
 
@@ -24,41 +24,65 @@ export const IndexCatalog: React.FC<Props> = ({ isOpen, onClose, inventory, oreI
     const [showSpoilers, setShowSpoilers] = useState(false);
     const T = TRANSLATIONS['en'];
 
+    // OPTIMIZATION: All useMemos now depend on 'isOpen'.
+    // If the catalog is closed, we return an empty Set immediately.
+    // This prevents iterating through thousands of items during auto-rolls when the UI isn't visible.
+
     const discoveredSet = useMemo(() => {
+        if (!isOpen) return new Set<string>();
         const set = new Set<string>();
         inventory.forEach(i => set.add(`${i.rarityId}:${i.text}`));
         return set;
-    }, [inventory]);
+    }, [inventory, isOpen]);
+
+    // NEW: Track discovered variants for each item
+    const discoveredVariantsMap = useMemo(() => {
+        if (!isOpen) return new Map<string, Set<VariantId>>();
+        const map = new Map<string, Set<VariantId>>();
+        inventory.forEach(i => {
+            const key = `${i.rarityId}:${i.text}`;
+            if (!map.has(key)) map.set(key, new Set());
+            if (i.variantId !== undefined && i.variantId !== VariantId.NONE) {
+                map.get(key)?.add(i.variantId);
+            }
+        });
+        return map;
+    }, [inventory, isOpen]);
 
     const discoveredOreSet = useMemo(() => {
+        if (!isOpen) return new Set<number>();
         const set = new Set<number>();
         oreInventory.forEach(i => set.add(i.id));
         return set;
-    }, [oreInventory]);
+    }, [oreInventory, isOpen]);
 
     const discoveredFishSet = useMemo(() => {
+        if (!isOpen) return new Set<number>();
         const set = new Set<number>();
         fishInventory.forEach(i => set.add(i.id));
         return set;
-    }, [fishInventory]);
+    }, [fishInventory, isOpen]);
 
     const discoveredPlantSet = useMemo(() => {
+        if (!isOpen) return new Set<number>();
         const set = new Set<number>();
         plantInventory.forEach(i => set.add(i.id));
         return set;
-    }, [plantInventory]);
+    }, [plantInventory, isOpen]);
 
     const discoveredDreamSet = useMemo(() => {
+        if (!isOpen) return new Set<number>();
         const set = new Set<number>();
         dreamInventory.forEach(i => set.add(i.id));
         return set;
-    }, [dreamInventory]);
+    }, [dreamInventory, isOpen]);
 
     const discoveredMoonSet = useMemo(() => {
+        if (!isOpen) return new Set<number>();
         const set = new Set<number>();
         moonInventory.forEach(i => set.add(i.id));
         return set;
-    }, [moonInventory]);
+    }, [moonInventory, isOpen]);
 
     if (!isOpen) return null;
 
@@ -105,15 +129,15 @@ export const IndexCatalog: React.FC<Props> = ({ isOpen, onClose, inventory, oreI
     };
 
     return (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/95 backdrop-blur-xl p-4">
-            <div className="w-full max-w-6xl h-[85vh] bg-neutral-900/50 border border-neutral-800 rounded-lg flex flex-col md:flex-row overflow-hidden shadow-2xl">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-xl p-4">
+            <div className="w-full max-w-6xl h-[85vh] bg-surface border border-border rounded-lg flex flex-col md:flex-row overflow-hidden shadow-2xl transition-colors duration-300">
 
                 {/* Sidebar - Controls & Navigation */}
-                <div className="w-full md:w-64 bg-black/40 border-r border-neutral-800 flex flex-col">
-                    <div className="p-4 border-b border-neutral-800 space-y-4">
+                <div className="w-full md:w-64 bg-surface-highlight/10 border-r border-border flex flex-col">
+                    <div className="p-4 border-b border-border space-y-4">
                         <div className="flex justify-between items-center">
-                            <h2 className="text-xl font-bold text-white tracking-wider font-mono">INDEX</h2>
-                            <div className="text-[10px] text-neutral-500 font-mono">
+                            <h2 className="text-xl font-bold text-text tracking-wider font-mono">INDEX</h2>
+                            <div className="text-[10px] text-text-dim font-mono">
                                 {activeTab === 'ITEMS' && `${percentComplete}%`}
                                 {activeTab === 'ORES' && `${orePercent}%`}
                                 {activeTab === 'GOLD_ORES' && `${goldOrePercent}%`}
@@ -126,12 +150,12 @@ export const IndexCatalog: React.FC<Props> = ({ isOpen, onClose, inventory, oreI
 
                         {/* Tab Switcher */}
                         <div className="flex flex-col gap-1">
-                            <div className="flex flex-wrap p-1 bg-neutral-900 rounded border border-neutral-800 gap-1 overflow-x-auto no-scrollbar">
+                            <div className="flex flex-wrap p-1 bg-surface rounded border border-border gap-1 overflow-x-auto no-scrollbar">
                                 {['ITEMS', 'ORES', 'GOLD_ORES', 'FISH', 'PLANTS', 'DREAMS', 'MOON'].map((tab) => (
                                     <button
                                         key={tab}
                                         onClick={() => { audioService.playClick(); setActiveTab(tab as Tab); }}
-                                        className={`flex-1 min-w-[60px] py-2 text-[10px] font-mono text-center rounded ${activeTab === tab ? 'bg-neutral-700 text-white' : 'text-neutral-500 hover:text-neutral-300'}`}
+                                        className={`flex-1 min-w-[60px] py-2 text-[10px] font-mono text-center rounded transition-colors ${activeTab === tab ? 'bg-primary text-background font-bold' : 'text-text-dim hover:text-text hover:bg-surface-highlight'}`}
                                     >
                                         {tab === 'GOLD_ORES' ? 'GOLD' : tab}
                                     </button>
@@ -152,7 +176,7 @@ export const IndexCatalog: React.FC<Props> = ({ isOpen, onClose, inventory, oreI
                                         onClick={() => setSelectedRarity(tier.id)}
                                         className={`
                                     w-full text-left px-3 py-2 rounded text-xs font-mono flex justify-between items-center transition-all
-                                    ${selectedRarity === tier.id ? 'bg-neutral-800 text-white border border-neutral-600' : 'text-neutral-500 hover:bg-neutral-900 hover:text-neutral-300'}
+                                    ${selectedRarity === tier.id ? 'bg-surface-highlight text-text border border-border' : 'text-text-dim hover:bg-surface-highlight hover:text-text'}
                                 `}
                                     >
                                         <span className={selectedRarity === tier.id ? tier.textColor : ''}>
@@ -168,13 +192,7 @@ export const IndexCatalog: React.FC<Props> = ({ isOpen, onClose, inventory, oreI
                     {/* Statistics Panels */}
                     {activeTab !== 'ITEMS' && (
                         <div className="flex-1 overflow-y-auto p-4">
-                            <div className={`text-xs font-mono mb-4 ${activeTab === 'ORES' ? 'text-neutral-400' :
-                                    activeTab === 'GOLD_ORES' ? 'text-yellow-400' :
-                                        activeTab === 'FISH' ? 'text-cyan-400' :
-                                            activeTab === 'PLANTS' ? 'text-green-400' :
-                                                activeTab === 'DREAMS' ? 'text-purple-400' :
-                                                    'text-slate-200'
-                                }`}>
+                            <div className={`text-xs font-mono mb-4 text-text-dim`}>
                                 {activeTab === 'ORES' && "CATALOGUED RESOURCES FROM SECTOR 7G."}
                                 {activeTab === 'GOLD_ORES' && "RARE METALS FROM DIMENSION AU-79."}
                                 {activeTab === 'FISH' && "DATA-FORMS FROM THE DEEP WEB."}
@@ -183,8 +201,8 @@ export const IndexCatalog: React.FC<Props> = ({ isOpen, onClose, inventory, oreI
                                 {activeTab === 'MOON' && "LUNAR SAMPLES AND ANOMALIES."}
                             </div>
                             <div className="space-y-2">
-                                <div className="text-[10px] text-neutral-500 uppercase tracking-widest">Statistics</div>
-                                <div className="flex justify-between text-xs font-mono text-neutral-300">
+                                <div className="text-[10px] text-text-dim uppercase tracking-widest">Statistics</div>
+                                <div className="flex justify-between text-xs font-mono text-text">
                                     <span>Discovered</span>
                                     <span>
                                         {activeTab === 'ORES' && `${foundOres} / ${totalOres}`}
@@ -199,13 +217,13 @@ export const IndexCatalog: React.FC<Props> = ({ isOpen, onClose, inventory, oreI
                         </div>
                     )}
 
-                    <div className="p-4 border-t border-neutral-800">
-                        <label className="flex items-center gap-2 text-xs text-neutral-400 font-mono cursor-pointer hover:text-white">
+                    <div className="p-4 border-t border-border">
+                        <label className="flex items-center gap-2 text-xs text-text-dim font-mono cursor-pointer hover:text-text transition-colors">
                             <input
                                 type="checkbox"
                                 checked={showSpoilers}
                                 onChange={(e) => setShowSpoilers(e.target.checked)}
-                                className="rounded border-neutral-700 bg-neutral-800"
+                                className="rounded border-border bg-surface accent-primary"
                             />
                             SHOW UNDISCOVERED
                         </label>
@@ -213,23 +231,23 @@ export const IndexCatalog: React.FC<Props> = ({ isOpen, onClose, inventory, oreI
                 </div>
 
                 {/* Main Content - Grid */}
-                <div className="flex-1 flex flex-col bg-neutral-900/20">
-                    <div className="p-4 flex justify-between items-center border-b border-neutral-800 bg-black/20">
+                <div className="flex-1 flex flex-col bg-surface-highlight/5">
+                    <div className="p-4 flex justify-between items-center border-b border-border bg-surface/50 backdrop-blur-sm">
                         <div className="flex items-center gap-3">
                             {activeTab === 'ITEMS' ? (
                                 <>
                                     <RarityBadge rarityId={selectedRarity} />
-                                    <span className="text-xs text-neutral-500 font-mono">
+                                    <span className="text-xs text-text-dim font-mono">
                                         1 in {RARITY_TIERS[selectedRarity].probability.toLocaleString()}
                                     </span>
                                 </>
                             ) : activeTab === 'MOON' ? (
-                                <span className="text-sm font-bold font-mono text-slate-200">LUNAR SURFACE</span>
+                                <span className="text-sm font-bold font-mono text-text">LUNAR SURFACE</span>
                             ) : (
-                                <span className="text-sm font-bold font-mono text-white">{activeTab.replace('_', ' ')} DB</span>
+                                <span className="text-sm font-bold font-mono text-text">{activeTab.replace('_', ' ')} DB</span>
                             )}
                         </div>
-                        <button onClick={onClose} className="text-neutral-500 hover:text-white font-mono">[X]</button>
+                        <button onClick={onClose} className="text-text-dim hover:text-text font-mono transition-colors">[X]</button>
                     </div>
 
                     <div className="flex-1 overflow-y-auto p-6">
@@ -237,6 +255,7 @@ export const IndexCatalog: React.FC<Props> = ({ isOpen, onClose, inventory, oreI
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                                 {currentItems.map((item, idx) => {
                                     const isDiscovered = discoveredSet.has(`${selectedRarity}:${item.text}`);
+                                    const variantsFound = discoveredVariantsMap.get(`${selectedRarity}:${item.text}`);
                                     const isVisible = isDiscovered || showSpoilers;
 
                                     return (
@@ -245,28 +264,47 @@ export const IndexCatalog: React.FC<Props> = ({ isOpen, onClose, inventory, oreI
                                             onClick={() => isVisible && onSelectItem(item, selectedRarity)}
                                             disabled={!isVisible}
                                             className={`
-                                        relative p-4 border rounded-lg text-left transition-all group h-32 flex flex-col justify-between
+                                        relative p-4 border rounded-lg text-left transition-all group flex flex-col justify-between min-h-[8rem]
                                         ${isVisible
-                                                    ? `border-neutral-700 bg-neutral-800/50 hover:bg-neutral-800 hover:border-${RARITY_TIERS[selectedRarity].color.split('-')[1]}-500`
-                                                    : 'border-neutral-800 bg-neutral-900/50 opacity-50 cursor-not-allowed'
+                                                    ? `border-border bg-surface hover:bg-surface-highlight hover:border-text`
+                                                    : 'border-border bg-surface opacity-50 cursor-not-allowed'
                                                 }
                                     `}
                                         >
                                             {isVisible ? (
                                                 <>
-                                                    <div className={`font-bold text-sm ${RARITY_TIERS[selectedRarity].textColor} line-clamp-2`}>
-                                                        {item.text}
+                                                    <div className={`font-bold text-sm line-clamp-2`} style={{ color: RARITY_TIERS[selectedRarity].color === 'border-white' ? 'var(--color-text)' : undefined }}>
+                                                        <span className={RARITY_TIERS[selectedRarity].textColor}>{item.text}</span>
                                                     </div>
-                                                    <div className="text-[10px] text-neutral-500 font-mono line-clamp-2 mt-2">
+                                                    <div className="text-[10px] text-text-dim font-mono line-clamp-2 mt-2">
                                                         {item.description}
                                                     </div>
-                                                    <div className="text-[9px] text-neutral-600 uppercase tracking-widest mt-auto pt-2 opacity-0 group-hover:opacity-100 transition-opacity">
+
+                                                    {/* Variants Display */}
+                                                    {variantsFound && variantsFound.size > 0 && (
+                                                        <div className="mt-3 pt-2 border-t border-border/50">
+                                                            <div className="text-[9px] text-text-dim uppercase tracking-widest mb-1">VARIANTS</div>
+                                                            <div className="flex flex-wrap gap-1">
+                                                                {Array.from(variantsFound).map(vId => {
+                                                                    const variant = VARIANTS[vId];
+                                                                    if (!variant) return null;
+                                                                    return (
+                                                                        <span key={vId} className={`text-[8px] px-1 rounded bg-background/50 border border-border ${variant.styleClass.split(' ')[0]}`}>
+                                                                            {variant.name}
+                                                                        </span>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        </div>
+                                                    )}
+
+                                                    <div className="text-[9px] text-text-dim uppercase tracking-widest mt-auto pt-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                                         Visualize
                                                     </div>
                                                 </>
                                             ) : (
                                                 <div className="flex items-center justify-center h-full">
-                                                    <span className="text-neutral-700 font-mono text-2xl">???</span>
+                                                    <span className="text-text-dim font-mono text-2xl">???</span>
                                                 </div>
                                             )}
                                         </button>
@@ -285,19 +323,19 @@ export const IndexCatalog: React.FC<Props> = ({ isOpen, onClose, inventory, oreI
                                             className={`
                                                 relative p-4 border rounded-lg text-center transition-all h-40 flex flex-col items-center justify-center gap-2
                                                 ${isVisible
-                                                    ? 'border-slate-600 bg-slate-900/40 hover:bg-slate-800 cursor-pointer group shadow-[0_0_15px_rgba(148,163,184,0.1)]'
-                                                    : 'border-neutral-800 bg-neutral-900/50 opacity-50'
+                                                    ? 'border-border bg-surface hover:bg-surface-highlight cursor-pointer group shadow-sm hover:shadow-md'
+                                                    : 'border-border bg-surface opacity-50'
                                                 }
                                             `}
                                         >
                                             {isVisible ? (
                                                 <>
-                                                    <div className="text-[9px] font-mono uppercase text-slate-400 tracking-widest mb-1">Moon</div>
-                                                    <div className="text-lg font-bold text-slate-200 drop-shadow-sm">{item.text}</div>
-                                                    <div className="text-[10px] text-slate-500 font-mono mt-2">1 in {item.probability.toLocaleString()}</div>
-                                                    <div className="text-[9px] text-slate-500 uppercase tracking-widest mt-auto pt-2 opacity-0 group-hover:opacity-100 transition-opacity absolute bottom-2">Visualize</div>
+                                                    <div className="text-[9px] font-mono uppercase text-text-dim tracking-widest mb-1">Moon</div>
+                                                    <div className="text-lg font-bold text-text drop-shadow-sm">{item.text}</div>
+                                                    <div className="text-[10px] text-text-dim font-mono mt-2">1 in {item.probability.toLocaleString()}</div>
+                                                    <div className="text-[9px] text-text-dim uppercase tracking-widest mt-auto pt-2 opacity-0 group-hover:opacity-100 transition-opacity absolute bottom-2">Visualize</div>
                                                 </>
-                                            ) : <div className="text-neutral-700 font-mono">LOCKED</div>}
+                                            ) : <div className="text-text-dim font-mono">LOCKED</div>}
                                         </div>
                                     );
                                 })}
@@ -324,7 +362,7 @@ export const IndexCatalog: React.FC<Props> = ({ isOpen, onClose, inventory, oreI
                                                 onClick={() => isVisible && handleResourceClick(item.id, item.name, item.description)}
                                                 className={`
                                                     relative p-4 border rounded-lg text-center transition-all h-40 flex flex-col items-center justify-center gap-2
-                                                    ${isVisible ? 'border-neutral-700 bg-neutral-800/50 hover:bg-neutral-800 cursor-pointer group' : 'border-neutral-800 bg-neutral-900/50 opacity-50'}
+                                                    ${isVisible ? 'border-border bg-surface hover:bg-surface-highlight cursor-pointer group' : 'border-border bg-surface opacity-50'}
                                                 `}
                                                 style={{
                                                     borderColor: isVisible && item.id > 20 ? item.glowColor : undefined,
@@ -333,21 +371,21 @@ export const IndexCatalog: React.FC<Props> = ({ isOpen, onClose, inventory, oreI
                                             >
                                                 {isVisible ? (
                                                     <>
-                                                        <div className="text-[9px] font-mono uppercase text-neutral-500 tracking-widest mb-1">
+                                                        <div className="text-[9px] font-mono uppercase text-text-dim tracking-widest mb-1">
                                                             {item.tierName}
                                                         </div>
-                                                        <div className={`text-lg font-bold ${item.color} drop-shadow-sm`}>
+                                                        <div className={`text-lg font-bold drop-shadow-sm`} style={{ color: item.glowColor }}>
                                                             {item.name}
                                                         </div>
-                                                        <div className="text-[10px] text-neutral-500 font-mono mt-2">
+                                                        <div className="text-[10px] text-text-dim font-mono mt-2">
                                                             1 in {item.probability.toLocaleString()}
                                                         </div>
-                                                        <div className="text-[9px] text-neutral-500 uppercase tracking-widest mt-auto pt-2 opacity-0 group-hover:opacity-100 transition-opacity absolute bottom-2">
+                                                        <div className="text-[9px] text-text-dim uppercase tracking-widest mt-auto pt-2 opacity-0 group-hover:opacity-100 transition-opacity absolute bottom-2">
                                                             Visualize
                                                         </div>
                                                     </>
                                                 ) : (
-                                                    <div className="text-neutral-700 font-mono">LOCKED</div>
+                                                    <div className="text-text-dim font-mono">LOCKED</div>
                                                 )}
                                             </div>
                                         );
